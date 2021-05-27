@@ -10,8 +10,8 @@ library(tidylog)          #More verbose tidyverse
 library(magrittr)         #Piping %>% 
 library(ggplot2)          #Pretty!
 library(sf)               #Spatial data
-library(janitor)
-library(santoku)          #Good for cutting data up
+#library(janitor)
+#library(santoku)          #Good for cutting data up
 
 setwd("D:/Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject")
 
@@ -19,7 +19,8 @@ setwd("D:/Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject")
 
 novel<-st_read('NovelPlot.shp') #9
 regrowth<-st_read('RegrowthPlot.shp') #10
-remnant<-st_read('RemPlots.shp') #26
+remnant<-st_read('RemPlots.shp') %>% #25 
+  filter(PlotID > 0) #There is a plot without data. Drop it.
 
 #Load tree data
 
@@ -105,7 +106,12 @@ df %>%
               names_sort = TRUE, #Sort alphabetically
               values_from = ba_m, #Cells are BA
               values_fn = sum, #Add BA together
-              values_fill = 0) -> plotSpeciesBA #Fill NA with 0 and write it
+              values_fill = 0) %>% #Fill NA with 0 
+  #There are some plots with no trees. Find them by adding all of the BA and
+  #filtering for plots with sum BA of 0
+  mutate(sumBA = rowSums(across(where(is.numeric)))) %>% 
+  filter(sumBA > 0) %>% 
+  select(-sumBA)-> plotSpeciesBA #Remove sumBA and write
 
 View(plotSpeciesBA) #Looks great!
 
@@ -150,7 +156,13 @@ df %>%
               names_sort = TRUE, #Sort alphabetically
               values_from = ba_m, #Cells are BA
               values_fn = sum, #Add BA together
-              values_fill = 0) -> edgeSpeciesBA #Fill NA with 0 and write it
+              values_fill = 0) %>%  #Fill NA with 0
+  #There are some plots with no trees. Find them by adding all of the BA and
+  #filtering for plots with sum BA of 0
+  mutate(sumBA = rowSums(across(where(is.numeric)))) %>% 
+  filter(sumBA > 0) %>% 
+  select(-sumBA)-> edgeSpeciesBA #Remove sumBA and write
+
 
 View(edgeSpeciesBA)
 
