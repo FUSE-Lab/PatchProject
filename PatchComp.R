@@ -121,9 +121,9 @@ write_csv(plotSpeciesBA, 'coreSpeciesBA.csv')
 
 #Load plot types
 
-novelEdge<-st_read('NovelEdgePlot.shp') #9
-regrowthEdge<-st_read('RegrowthEdgePlot.shp') #10
-remnantEdge<-st_read('RemnantEdgePlot.shp') #26
+novelEdge<-st_read('NovelEdgePlot.shp') 
+regrowthEdge<-st_read('RegrowthEdgePlot.shp') 
+remnantEdge<-st_read('RemnantEdgePlot.shp') 
 
 #Look at each group of trees
 
