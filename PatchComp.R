@@ -7,53 +7,46 @@
 library(plyr)
 library(tidyverse)
 library(tidylog)          #More verbose tidyverse
-library(magrittr)         #Piping %>% 
-library(ggplot2)          #Pretty!
 library(sf)               #Spatial data
 #library(janitor)
 #library(santoku)          #Good for cutting data up
 
 setwd("D:/Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject")
 
-#Load core plots from 2010
+#Load core plots from 2010 -----------------
 
-novel<-st_read('novelCorePlot10.shp') 
-regrowth<-st_read('regrowthCorePlot10.shp') 
-remnant<-st_read('remCorePlot10.shp') 
+novelCore<-st_read('novelCorePlot10.shp') #9 plots
+regrowthCore<-st_read('regrowthCorePlot10.shp') #13 plots
+remnantCore<-st_read('remCorePlot10.shp') #31 plots
 
 #Load tree data
 
 trees10 <- read_csv('iTree2010Trees.csv')%>% 
-  mutate(dbh_cm = DBH_IN*2.54)
+  mutate(dbh_cm = DBH_IN*2.54) #Change to cm
 
 #Look at each group of trees
 
 #Novel
-novelTree<-left_join(novel,trees10, by = 'PlotID') %>% 
-  mutate(patchType = 'Novel') %>% 
-  select(-OBJECTID_1, -Shape_Le_1)
+novelCoreTree10<-left_join(novelCore,trees10, by = 'PlotID') %>% 
+  mutate(patchType = 'Novel') %>% #Add column with patch type
+  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType) #441 trees
 
 #Remnant
-remnantTree<-left_join(remnant,trees10, by = 'PlotID')%>% 
-  mutate(patchType = 'Remnant') %>% 
-  select(-Acres)
+remnantCoreTree10<-left_join(remnantCore,trees10, by = 'PlotID')%>% 
+  mutate(patchType = 'Remnant') %>% #Add column with patch type
+  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType) #1325 trees
 
 #Regrowth
-regrowthTree<-left_join(regrowth,trees10, by = 'PlotID')%>% 
-  mutate(patchType = 'Regrowth') %>% 
-  select(-OBJECTID_1, -Shape_Le_1)
+regrowthCoreTree10<-left_join(regrowthCore,trees10, by = 'PlotID')%>% 
+  mutate(patchType = 'Regrowth') %>% #Add column with patch type
+  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType) #775 trees
 
 #Merge them together
 
-merged<-rbind(remnantTree, regrowthTree, novelTree) 
+mergedCore10<-rbind(remnantCoreTree10, regrowthCoreTree10, novelCoreTree10) 
 
-# #Drop extra columns
-# df<-merged[,-c(1:4,6:29,31:41)] 
-
-#Drop extra columns
-df<-merged[,-c(2:6,11)] 
-
-write_csv(df,'corePlotSpecies10.csv')
+#write
+write_csv(mergedCore10,'corePlotSpecies10.csv')
 
 #Not using this binning code for now, but may need later.
 
@@ -98,9 +91,8 @@ write_csv(df,'corePlotSpecies10.csv')
 # View(binned)
 
 #Create a table with plots as rows, species as columns, and sum of BA in cells
-#TODO: this is not working.
 
-df %>% 
+mergedCore10 %>% 
   mutate(ba_m = (dbh_cm^2)*0.00007854) %>% #Add BA
   st_drop_geometry(.) %>% #pivot_wider doesn't like spatial data
   select(PlotID, patchType, GenusSpecies, ba_m) %>% #Only the necessary columns
@@ -112,50 +104,50 @@ df %>%
               values_fill = 0) %>% #Fill NA with 0 
   #There are some plots with no trees. Find them by adding all of the BA and
   #filtering for plots with sum BA of 0
-  mutate(sumBA = rowSums(dplyr::across(where(is.numeric)))) %>% 
-  filter(sumBA > 0) %>% 
-  select(-sumBA)-> plotSpeciesBA #Remove sumBA and write
+  mutate(sumBA = rowSums(dplyr::across(where(is.numeric)))) %>% #Add column with total BA
+  filter(sumBA > 0) %>% #Filter rows with no trees
+  select(-sumBA)-> coreSpeciesBA10 #Remove sumBA column and save out results
 
-View(plotSpeciesBA) #Looks great!
+View(coreSpeciesBA10) #Looks great!
 
-write_csv(plotSpeciesBA, 'coreSpeciesBA10.csv')
+write_csv(coreSpeciesBA10, 'coreSpeciesBA10.csv')
 
-#Do the same thing for plots that are on the edge
+#Edge 2010-----------------
 
 #Load plot types
 
-novelEdge<-st_read('novelEdgePlot10.shp') 
-regrowthEdge<-st_read('regrowthEdgePlot10.shp') 
-remnantEdge<-st_read('remEdgePlot10.shp') 
+novelEdge10<-st_read('novelEdgePlot10.shp') #18 plots
+regrowthEdge10<-st_read('regrowthEdgePlot10.shp') #16 plots
+remnantEdge10<-st_read('remEdgePlot10.shp') #18 plots
 
 #Look at each group of trees
 
 #Novel
-novelEdgeTree<-left_join(novelEdge,trees10, by = 'PlotID') %>% 
+novelEdgeTree10<-left_join(novelEdge10,trees10, by = 'PlotID') %>% 
   mutate(patchType = 'Novel') %>% 
-  select(-OBJECTID_1, -Shape_Le_1)
+  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType) #951 trees
 
 #Remnant
-remnantEdgeTree<-left_join(remnantEdge,trees10, by = 'PlotID')%>% 
+remnantEdgeTree10<-left_join(remnantEdge10,trees10, by = 'PlotID')%>% 
   mutate(patchType = 'Remnant') %>% 
-  select(-Acres)
+  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType) #734 trees
 
 #Regrowth
-regrowthEdgeTree<-left_join(regrowthEdge,trees10, by = 'PlotID')%>% 
+regrowthEdgeTree10<-left_join(regrowthEdge10,trees10, by = 'PlotID')%>% 
   mutate(patchType = 'Regrowth')%>% 
-  select(-OBJECTID_1, -Shape_Le_1)
+  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType) # 642 trees
 
 #Merge them together
 
-merged<-rbind(remnantEdgeTree, regrowthEdgeTree, novelEdgeTree) 
+mergedEdge10<-rbind(remnantEdgeTree10, regrowthEdgeTree10, novelEdgeTree10) 
 
-df<-merged[,-c(2:6,11)] 
+#Write results
 
-dim(df)
+write_csv(mergedEdge10,'edgePlotSpecies10.csv')
 
-write_csv(df,'edgePlotSpecies10.csv')
+#Now calculate BA of each species
 
-df %>% 
+mergedEdge10 %>% 
   mutate(ba_m = (dbh_cm^2)*0.00007854) %>% #Add BA
   st_drop_geometry(.) %>% #pivot_wider doesn't like spatial data
   select(PlotID, patchType, GenusSpecies, ba_m) %>% #Only the necessary columns
@@ -169,43 +161,46 @@ df %>%
   #filtering for plots with sum BA of 0
   mutate(sumBA = rowSums(across(where(is.numeric)))) %>% 
   filter(sumBA > 0) %>% 
-  select(-sumBA)-> edgeSpeciesBA #Remove sumBA and write
+  select(-sumBA)-> edgeSpeciesBA10 #Remove sumBA and write
 
 
-View(edgeSpeciesBA)
+View(edgeSpeciesBA10)
 
-write_csv(edgeSpeciesBA, 'edgeSpeciesBA10.csv')
+write_csv(edgeSpeciesBA10, 'edgeSpeciesBA10.csv')
 
 #Do it again with 2020 data---------------------
 
-trees20 <- read_csv('RegionAllTrees2020.csv') %>% #Throws a warning but looks okay
-  rename('PlotID' = 'Plot ID',
-         'Native' = 'Native to State',
-         'TreeID' = 'Tree ID') %>% 
-  mutate(dbh_cm = DBH_in*2.54) %>% 
-  select(-X18, -X19, -X20)
+#Species list
 
+species <- read_csv('itree_species_list.csv')
 
-novel<-st_read('novelCorePlot20.shp') 
-regrowth<-st_read('regrowthCorePlot20.shp') 
-remnant<-st_read('remCorePlot20.shp') 
+trees20 <- read_csv('AllTrees2020.csv') %>% 
+  dplyr::rename('PlotID' = 'Plot ID',
+         'Native' = 'Native to State') %>% 
+  mutate(TreeID = paste(`PlotID`, `Tree ID`, sep = '')) %>% 
+  mutate(dbh_cm = `DBH (in)`*2.54) %>% 
+  left_join(., species, by = 'Common Name' )
+
+novelCore20<-st_read('novelCorePlot20.shp') 
+regrowthCore20<-st_read('regrowthCorePlot20.shp') 
+remnantCore20<-st_read('remCorePlot20.shp') 
 
 #Look at each group of trees
 
 #Novel
-novelTree<-left_join(novel,trees20, by = 'PlotID') %>% 
+novelCoreTree20<-left_join(novelCore20, trees20, by = 'PlotID') %>% 
   mutate(patchType = 'Novel') %>% 
-  select(-Shape_Le_1)
+  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType) #502
 
 #Regrowth
-regrowthTree<-left_join(regrowth,trees20, by = 'PlotID')%>% 
+regrowthCoreTree20<-left_join(regrowthCore20, trees20, by = 'PlotID')%>% 
   mutate(patchType = 'Regrowth') %>% 
-  select(-Shape_Le_1)
+  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType) #681
 
 #Remnant
-remnantTree<-left_join(remnant,trees20, by = 'PlotID')%>% 
+remnantCoreTree20<-left_join(remnantCore20, trees20, by = 'PlotID')%>% 
   mutate(patchType = 'Remnant') %>% 
-  select(-Acres, -OBJECTID_1)
+  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType) #768
 
 
 #New samples
@@ -213,34 +208,30 @@ remnantTree<-left_join(remnant,trees20, by = 'PlotID')%>%
 sampled <- read.csv('PatchTreeData.csv')
 plotData <- read.csv('PlotsToSample.csv')
 
-coreClean <- sampled %>% 
-  left_join(., plotData, by = 'PlotID') %>% 
-  rename(patchType = 'Type') %>% 
-  separate(., `Species`, c('Genus', 'Species'), sep = " ") %>% 
-  unite(GenusSpecies, c('Genus', 'Species'), sep = ' ', remove = FALSE) %>% 
-  mutate(dbh_cm = DBH_in*2.54) %>% 
-  filter(CoreEdge == 'Core') %>% 
+#Clean up data for join
+coreClean20 <- sampled %>% 
+  left_join(., plotData, by = 'PlotID') %>% #join plot data
+  dplyr::rename(patchType = 'Type') %>% 
+  separate(., `Species`, c('Genus', 'Species'), sep = " ") %>% #Make genus and species columns
+  unite(GenusSpecies, c('Genus', 'Species'), sep = ' ', remove = FALSE) %>% #Pull back together
+  mutate(dbh_cm = DBH_in*2.54) %>% #cm
+  filter(CoreEdge == 'Core') %>% #Only want core
   select(PlotID, UniqueID, Genus, Species, GenusSpecies, dbh_cm, patchType) %>% 
-  rename('TreeID' = 'UniqueID')
+  dplyr::rename('TreeID' = 'UniqueID')
 
 #Merge them together
 
-merged<-rbind(remnantTree, regrowthTree, novelTree) %>% 
-  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType) %>% 
-  st_drop_geometry(.) %>% 
-  rbind(., coreClean)
+mergedCore20<-rbind(remnantCoreTree20, regrowthCoreTree20, novelCoreTree20) %>% 
+  st_drop_geometry(.) %>% #Move to df
+  rbind(., coreClean20) #Bring in new data
   
+head(mergedCore20)
 
-#Drop extra columns
+write_csv(mergedCore20,'corePlotSpecies20.csv')
 
-df<-merged %>% 
-  filter(PlotID != 2167) #Remove plot with no trees
+#Create table with plots and BA
 
-View(df)
-
-write_csv(df,'corePlotSpecies20.csv')
-
-df %>% 
+mergedCore20 %>% 
   mutate(ba_m = (dbh_cm^2)*0.00007854) %>% #Add BA
   select(PlotID, patchType, GenusSpecies, ba_m) %>% #Only the necessary columns
   pivot_wider(id_cols = c(PlotID, patchType), #Summarize by PlotID and keep patch type
@@ -253,60 +244,59 @@ df %>%
   #filtering for plots with sum BA of 0
   mutate(sumBA = rowSums(dplyr::across(where(is.numeric)))) %>% 
   filter(sumBA > 0) %>% 
-  select(-sumBA)-> plotSpeciesBA #Remove sumBA and write
+  select(-sumBA)-> plotCoreSpeciesBA20 #Remove sumBA and write
 
-View(plotSpeciesBA) #Looks great!
+View(plotCoreSpeciesBA20) #Looks great!
 
-write_csv(plotSpeciesBA, 'coreSpeciesBA20.csv')
+write_csv(plotCoreSpeciesBA20, 'coreSpeciesBA20.csv')
 
 #Do the same thing for plots that are on the edge
 
 #Load plot types
 
-novelEdge<-st_read('novelEdgePlot20.shp') 
-regrowthEdge<-st_read('regrowthEdgePlot20.shp') 
-remnantEdge<-st_read('remEdgePlot20.shp') 
+novelEdge20<-st_read('novelEdgePlot20.shp') 
+regrowthEdge20<-st_read('regrowthEdgePlot20.shp') 
+remnantEdge20<-st_read('remEdgePlot20.shp') 
 
 #Look at each group of trees
 
 #Novel
-novelEdgeTree<-left_join(novelEdge,trees20, by = 'PlotID') %>% 
+novelEdgeTree20<-left_join(novelEdge20,trees20, by = 'PlotID') %>% #751 trees
   mutate(patchType = 'Novel') %>% 
-  select(-Shape_Le_1)
+  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType)
 
 #Remnant
-remnantEdgeTree<-left_join(remnantEdge,trees20, by = 'PlotID')%>% 
+remnantEdgeTree20<-left_join(remnantEdge20,trees20, by = 'PlotID')%>% #702 trees
   mutate(patchType = 'Remnant') %>% 
-  select(-OBJECTID_1, -Acres)
+  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType)
 
 #Regrowth
-regrowthEdgeTree<-left_join(regrowthEdge,trees20, by = 'PlotID')%>% 
+regrowthEdgeTree20<-left_join(regrowthEdge20,trees20, by = 'PlotID')%>% #746 trees
   mutate(patchType = 'Regrowth')%>% 
-  select(-Shape_Le_1)
+  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType)
 
 #New samples
 
-edgeClean <- sampled %>% 
+edgeClean20 <- sampled %>% 
   left_join(., plotData, by = 'PlotID') %>% 
-  rename(patchType = 'Type') %>% 
+  dplyr::rename(patchType = 'Type') %>% 
   separate(., `Species`, c('Genus', 'Species'), sep = " ") %>% 
   unite(GenusSpecies, c('Genus', 'Species'), sep = ' ', remove = FALSE) %>% 
   mutate(dbh_cm = DBH_in*2.54) %>% 
-  filter(CoreEdge == 'Edge') %>% 
+  filter(CoreEdge == 'Edge') %>% #Filter for edge
   select(PlotID, UniqueID, Genus, Species, GenusSpecies, dbh_cm, patchType) %>% 
-  rename('TreeID' = 'UniqueID')
+  dplyr::rename('TreeID' = 'UniqueID')
 
 
 #Merge them together
 
-merged<-rbind(remnantEdgeTree, regrowthEdgeTree, novelEdgeTree)%>% 
-  select(PlotID, TreeID, Genus, Species, GenusSpecies, dbh_cm, patchType) %>% 
+mergedEdge20<-rbind(remnantEdgeTree20, regrowthEdgeTree20, novelEdgeTree20)%>% 
   st_drop_geometry(.) %>% 
-  rbind(., coreClean)
+  rbind(., edgeClean20)
 
 write_csv(merged,'edgePlotSpecies20.csv')
 
-merged %>% 
+mergedEdge20 %>% 
   mutate(ba_m = (dbh_cm^2)*0.00007854) %>% #Add BA
   select(PlotID, patchType, GenusSpecies, ba_m) %>% #Only the necessary columns
   pivot_wider(id_cols = c(PlotID, patchType), #Summarize by PlotID and keep patch type
@@ -317,11 +307,11 @@ merged %>%
               values_fill = 0) %>%  #Fill NA with 0
   #There are some plots with no trees. Find them by adding all of the BA and
   #filtering for plots with sum BA of 0
-  mutate(sumBA = rowSums(across(where(is.numeric)))) %>% 
+  dplyr::mutate(sumBA = rowSums(across(where(is.numeric)))) %>% 
   filter(sumBA > 0) %>% 
-  select(-sumBA)-> edgeSpeciesBA #Remove sumBA and write
+  select(-sumBA)-> edgeSpeciesBA20 #Remove sumBA and write
 
 
-View(edgeSpeciesBA)
+View(edgeSpeciesBA20)
 
-write_csv(edgeSpeciesBA, 'edgeSpeciesBA20.csv')
+write_csv(edgeSpeciesBA20, 'edgeSpeciesBA20.csv')

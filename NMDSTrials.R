@@ -1,6 +1,8 @@
 #NMDS of tree species by patch type
 
-#libraries
+#Libraries------------
+
+rm(list=ls())
 
 library(tidyverse)
 library(tidylog)
@@ -10,23 +12,28 @@ library(ggplot2)
 
 setwd("D:/Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject")
 
+#Core plots----------
+
 #This file has plots, the patch type, and BA of each species in the columns
-df<-read_csv('coreSpeciesBA.csv') %>% 
-  select(-X57) %>% #It's adding a weird column. Drop that boy.
-  replace(is.na(.),0) #Can't have NA for NMDS. Change to zero.
 
-View(df)
+df<-read_csv('coreSpeciesBA20.csv') %>% 
+ select(-X72)
 
-#Run the NMDS. Two axes, try 250 times
+#If you want to run genus instead of species, load this.
+
+# df<-read_csv('coreGenusBA20.csv') %>% 
+#    select(-X41)
+
+#Run the NMDS. Two axes, try 1000 times
 
 set.seed(123) #Make it reproducible
-NMDS<-metaMDS(comm = df[,-c(1:2)], distance = 'bray', k = 2, try = 250)
+NMDS<-metaMDS(comm = df[,-c(1:2)], distance = 'bray', k = 2, try = 5000)
 
 #Check results
 NMDS
 
 #Ugly plot
-plot(NMDS, type = 't')
+ordiplot(NMDS, type = 't')
 
 #Make a prettier plot using instructions from
 #https://chrischizinski.github.io/rstats/vegan-ggplot2/
@@ -55,31 +62,52 @@ ggplot() +
   geom_text(data=species.scores,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.5) +  # add the species labels
   geom_point(data=data.scores,aes(x=NMDS1,y=NMDS2,shape=grp,colour=grp),size=3) + # add the point markers
   #geom_text(data=data.scores,aes(x=NMDS1,y=NMDS2,label=site),size=6,vjust=0) +  # add the site labels
-  scale_colour_manual(values=c("Remnant" = "red", "Regrowth" = "blue", "Novel" = 'Green')) +
+  scale_colour_manual(values=c("Remnant" = "#415c57", "Regrowth" = "#6baa35", "Novel" = '#fe941c')) +
   coord_equal() +
-  theme_bw()
+  theme_bw() +
+  stat_ellipse(data = data.scores, aes(x=NMDS1,y=NMDS2, colour=grp))
 
 #Remnant patches cluster to the left, but there is not good resolution between
 #regrowth and novel patches.
+
+#Core fit------------
+
+env <- df[,2]
+
+en <- envfit(NMDS, env, permutations = 999, na.rm = TRUE)
+
+en
+
+#Patch type is a highly significant predictor of species composition
+#in forest cores
 
 #Edge plots-----------------
 #Let's look at the composition of plots that are on the edge of patches
 
 #This file has plots, the patch type, and BA of each species in the columns
-df<-read_csv('edgeSpeciesBA.csv') %>% 
-  select(-X86) %>% #It's adding a weird column. Drop that boy.
-  filter(PlotID != 6125) #This plot is all white pine and is ruining everything.
+df<-read_csv('edgeSpeciesBA20.csv') %>% 
+  filter(PlotID != 6125) %>%  #This plot is all white pine and is ruining everything.
+  filter(PlotID != 665) %>% 
+  select(-X96) #%>% 
+  select(-c('Rhamnus cathartica', 'Lonicera maackii')) #Remove invasives
+  
+#If you want to run genus instead of species, load this.
+  
+  df<-read_csv('edgeGenusBA20.csv') %>% 
+    select(-X48) %>% 
+    filter(PlotID != 6125) %>% 
+    filter(PlotID != 665)
 
 #Run the NMDS. Two axes, try 250 times
 
 set.seed(123) #Make it reproducible
-NMDS<-metaMDS(comm = df[,-c(1:2)], distance = 'bray', k = 3, try = 250)
+NMDS<-metaMDS(comm = df[,-c(1:2)], distance = 'bray', k = 2, try = 1000)
 
 #Check results
 NMDS
 
 #Ugly plot
-plot(NMDS, type = 't')
+ordiplot(NMDS, type = 't')
 
 #Make a prettier plot using instructions from
 #https://chrischizinski.github.io/rstats/vegan-ggplot2/
@@ -108,12 +136,22 @@ ggplot() +
   geom_text(data=species.scores,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.5) +  # add the species labels
   geom_point(data=data.scores,aes(x=NMDS1,y=NMDS2,shape=grp,colour=grp),size=3) + # add the point markers
   #geom_text(data=data.scores,aes(x=NMDS1,y=NMDS2,label=site),size=6,vjust=0) +  # add the site labels
-  scale_colour_manual(values=c("Remnant" = "red", "Regrowth" = "blue", "Novel" = 'Green')) +
+  scale_colour_manual(values=c("Remnant" = "#415c57", "Regrowth" = "#6baa35", "Novel" = '#fe941c')) +
   coord_equal() +
-  theme_bw()
+  theme_bw() +
+  stat_ellipse(data = data.scores, aes(x=NMDS1,y=NMDS2, colour=grp))
 
 #Edges seem to be the same regardless of patch type.
 
-#Check how well the patch types fit the data
+#Edge fit ------------
 
-en <- envfit(NMDS, grp, permutations = 999, na.rm = TRUE)
+env <- df[,2]
+
+en <- envfit(NMDS, env, permutations = 999, na.rm = TRUE)
+
+en
+
+#Patch type are also significant predictor of composition in edges,
+#but the R2 is lower.
+
+

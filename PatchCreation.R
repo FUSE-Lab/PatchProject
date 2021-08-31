@@ -35,7 +35,7 @@ woods <- veg %>%
   filter(ECOSYSTEM %in% c('Thicket', 'Barrens', 'Woodland')) #Only wooded ecosystem types
   
 
-woodsBuff <- st_buffer(woods, dist = 100) #Create buffer since boundaries are fuzzy distance in m
+woodsBuff <- st_buffer(woods, dist = 100) #Create buffer since boundaries are fuzzy. Distance in m
 
 #Create layers for each patch type----------
 
@@ -74,11 +74,13 @@ regrowthEdge <- st_read('regrowthEdge.shp') %>%
 
 # #New cores
 # newCore <- st_difference(currentcore, woodsBuff) %>% 
+#   st_difference(., midCen) %>% #Sometimes 1939 patches are outside the preset boundaries.
 #   st_write(., 'NovelPatch.shp', driver = 'ESRI Shapefile')
 # 
 # #New edges
-# newEdge <- st_difference(currentedge, woodsBuff) #%>% 
-  #st_write(., 'NovelEdge.shp', driver = 'ESRI Shapefile')
+# newEdge <- st_difference(currentedge, woodsBuff) #%>%  
+#   st_difference(., midCen) %>% 
+#   st_write(., 'NovelEdge.shp', driver = 'ESRI Shapefile')
 
 newCore <- st_read('NovelPatch.shp')%>% 
   sf::st_transform(., crs = 5070)
@@ -103,10 +105,10 @@ plots2 <- st_read('PlotsAll2020.shp')%>%
 
 #Remnant
 remCorePlot10 <- st_intersection(plots, remCore) %>% 
-  st_write(.,'remCorePlot10.shp', driver = 'ESRI Shapefile') #26 plots
+  st_write(.,'remCorePlot10.shp', driver = 'ESRI Shapefile') #31 plots
 
 remCorePlot20 <- st_intersection(plots2, remCore) %>% 
-  st_write(.,'remCorePlot20.shp', driver = 'ESRI Shapefile') #31 plots
+  st_write(.,'remCorePlot20.shp', driver = 'ESRI Shapefile') #26 plots
 
 remEdgePlot10 <- st_intersection(plots, remEdge) %>% 
   st_write(.,'remEdgePlot10.shp', driver = 'ESRI Shapefile') #18 plots
@@ -134,15 +136,16 @@ regrowthEdgePlot20 <- st_intersection(plots2, regrowthEdge) %>%
 #Novel
 
 novelCorePlot10 <- st_intersection(plots, newCore) %>% 
-  st_write(.,'novelCorePlot10.shp', driver = 'ESRI Shapefile') #12 plots
+  st_write(.,'novelCorePlot10.shp', driver = 'ESRI Shapefile') #10 plots
 
 novelCorePlot20 <- st_intersection(plots2, newCore) %>% 
   select(-OBJECTID_1, -OBJECTID.1, Id) %>%
-  st_write(.,'novelCorePlot20.shp', driver = 'ESRI Shapefile') #12 plots
+  st_write(.,'novelCorePlot20.shp', driver = 'ESRI Shapefile') #11 plots
 
 novelEdgePlot10 <- st_intersection(plots, newEdge) %>% 
   st_write(.,'novelEdgePlot10.shp', driver = 'ESRI Shapefile') #18 plots
 
 novelEdgePlot20 <- st_intersection(plots2, newEdge) %>% 
   select(-OBJECTID_1, -OBJECTID.1, Id) %>% 
-  st_write(.,'novelEdgePlot20.shp', driver = 'ESRI Shapefile') #15 plots
+  st_write(.,'novelEdgePlot20.shp', driver = 'ESRI Shapefile') #10 plots
+
