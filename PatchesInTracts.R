@@ -79,7 +79,7 @@ censusPatch$regRatio <- log(censusPatch$regRatio)
 
 #Write it out
 
-st_write(censusPatch, 'CensusPatchTypeArea.shp', driver = 'ESRI Shapefile', append = FALSE)
+st_write(censusPatch, 'CensusPatchTypeArea.shp', driver = 'ESRI Shapefile', append = TRUE)
 
 
 #Regressions--------
@@ -87,11 +87,11 @@ st_write(censusPatch, 'CensusPatchTypeArea.shp', driver = 'ESRI Shapefile', appe
 censusPatch <- st_read('CensusPatchTypeArea.shp')
 
 long <- censusPatch %>% 
-  pivot_longer(cols = c(novelRatio, remRatio, regRatio),
+  pivot_longer(cols = c(novelRt, remRati, regRati),
                names_to = 'PatchType') %>% 
   mutate(patchRatio = as.numeric(value))
 
-ggplot(long, aes(x = PatchType, y = patchRatio, fill = incomeLevel))+
+ggplot(long, aes(x = PatchType, y = patchRatio, fill = incmLvl))+
   geom_violin(trim = FALSE, show.legend = TRUE) +
   #geom_boxplot(width = 0.2, fill = '#FDF7F1') +
   scale_fill_manual(values=c("low" = "#415c57", 
