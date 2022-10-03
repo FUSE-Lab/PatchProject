@@ -8,6 +8,8 @@ library(tidyverse)
 library(tidylog)    #Make tidyverse more verbose
 library(sf)         #Spatial manipulation
 library(magrittr)   #Piping %>% 
+library(randomForest)
+library(vip)
 
 setwd("D:/Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject")
 
@@ -42,9 +44,9 @@ censusPatch <- census %>%
          regRatio = as.numeric(Regrowth/AreaHa/10000)) %>% 
   #Add column with low median high income
   mutate(incomeLevel = as.numeric(cut_number(Med_ncm, 3))) %>% #Split ito three even groups
-  mutate(incomeLevel=recode(incomeLevel, '1' = 'low', #Rename to something clearer
-                            '2' = 'medium',
-                            '3' = 'high')) 
+  mutate(incomeLevel=recode(incomeLevel, '1' = '1', #Rename to something clearer
+                            '2' = '2',
+                            '3' = '3')) 
     
   
 #View(censusPatch) #Check results
@@ -87,20 +89,21 @@ st_write(censusPatch, 'CensusPatchTypeArea.shp', driver = 'ESRI Shapefile', appe
 censusPatch <- st_read('CensusPatchTypeArea.shp')
 
 long <- censusPatch %>% 
-  pivot_longer(cols = c(novelRt, remRati, regRati),
+  pivot_longer(cols = c(novelRatio, remRatio, regRatio),
                names_to = 'PatchType') %>% 
   mutate(patchRatio = as.numeric(value))
 
-ggplot(long, aes(x = PatchType, y = patchRatio, fill = incmLvl))+
-  geom_violin(trim = FALSE, show.legend = TRUE) +
+ggplot(long, aes(x = PatchType, y = patchRatio, fill = incomeLevel))+
+  geom_boxplot(trim = TRUE, show.legend = TRUE, outlier.shape = NA) +
   #geom_boxplot(width = 0.2, fill = '#FDF7F1') +
-  scale_fill_manual(values=c("low" = "#415c57", 
-                             "medium" = "#6baa35", "high" = '#fe941c')) +
+  scale_fill_manual(values=c("1" = "#415c57", 
+                             "2" = "#6baa35", "3" = '#fe941c')) +
   labs(title = 'Coverage of forest patch types by income level', 
        x = 'Patch type', y = 'Ratio forested') +
-  guides(fill = guide_legend(title = "Income level")) #+
-#theme(legend.background = element_rect(fill = '#FDF7F1')) +
-#theme(plot.background = element_rect(fill = "#FDF7F1"))
+  guides(fill = guide_legend(title = "Income level")) +
+  ylim(0,.15) +
+theme(legend.background = element_rect(fill = '#FDF7F1')) +
+theme(plot.background = element_rect(fill = "#FDF7F1"))
 summary(censusPatch)
 
 long <- censusPatch %>% 
@@ -116,5 +119,36 @@ ggplot(long, aes(Med_ncm, value, shape=PatchType, colour=PatchType, fill=PatchTy
   geom_point(size=3) +
   theme_bw() + 
   xlab("Median income") +
-  ylab("Patch area") +
-  expand_limits(y=0)
+  ylab("Patch ratio") +
+  expand_limits(y=0) 
+
+#Random forest---------
+
+rfData <- st_drop_geometry(censusPatch)
+
+rfData[is.na(rfData)] <- 0
+
+
+rando<-randomForest(novelRatio~., data=rfData[,c(2:4, 6:12, 14:16,20)])
+rando
+
+#Visualize importance
+vip(rando, horizontal = TRUE, 
+    aesthetics = list(fill = '#415c57')) +
+  theme(plot.background = element_rect(fill = "#FDF7F1")) +
+  labs(title = 'Variable importance of remnant forests in all tracts')
+
+
+#PDP values for random forest 1
+Ag <- partial(rando, pred.var = 'Ag')
+Transit <- partial(rando, pred.var = 'Transit')
+TotPopD <- partial(rando, pred.var = 'TotPopD')
+Med_ncm <- partial(rando, pred.var = 'Med_ncm')
+
+#Plot them side by side
+par(mfcol=c(1,4))
+plot(Ag, xlab = 'Ag', ylab = 'Partial dependence')
+plot(Transit, xlab = 'Transit', ylab = 'Partial dependence')
+plot(TotPopD, xlab = 'Population density', ylab = 'Partial dependence')
+plot(Med_ncm, xlab = 'Median income', ylab = 'Partial dependence')
+
