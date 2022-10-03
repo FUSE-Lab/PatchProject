@@ -8,6 +8,7 @@ library(magrittr)
 library(vegan)
 library(ggrepel)
 
+
 setwd("D:/Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject")
 
 #Core plots with species----------
