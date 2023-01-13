@@ -8,16 +8,24 @@ library(tidyverse)
 library(tidylog)    #Make tidyverse more verbose
 library(sf)         #Spatial manipulation
 library(magrittr)   #Piping %>% 
+library(broom)
+library(car)
+library(spatialreg)
+library(knitr)
+library(stargazer)
 library(randomForest)
 library(vip)
+library(glmmfields)
+library(units)
+library(ggridges)
 
-setwd("D:/Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject")
+setwd("C:/Users/ledarlin/Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject")
 
 #Load patch data
 patch <- st_read("PatchWithTypeDissolve.shp") %>% 
   st_make_valid(.) #Fix topology error
 
-census <- st_read("D:/Dropbox/Forest Composition/composition/Maps/shapefiles/Origin/2015/2015Clean.shp") %>% 
+census <- st_read("C:/Users/ledarlin/Dropbox/Forest Composition/composition/Maps/shapefiles/Origin/2015/2015Clean.shp") %>% 
   st_make_valid(.) %>% 
   sf::st_transform(., crs = 5070) #Put into proper projection
 
@@ -39,81 +47,67 @@ patchSums <- int %>%
 
 censusPatch <- census %>% 
   left_join(., patchSums) %>% 
-  mutate(novelRatio = as.numeric(Novel/AreaHa/10000), #Calculate ratios. Divide by 10000 to 
-         remRatio = as.numeric(Remnant/AreaHa/10000), #convert Ha to m2. Change from units to number
-         regRatio = as.numeric(Regrowth/AreaHa/10000)) %>% 
+  mutate(novelRatio = drop_units(Novel/AreaHa/10000), #Calculate ratios. Divide by 10000 to 
+         remRatio = drop_units(Remnant/AreaHa/10000), #convert Ha to m2. Change from units to number
+         regRatio = drop_units(Regrowth/AreaHa/10000),
+         TotPop = TotPopD*AreaHa) %>% 
   #Add column with low median high income
-  mutate(incomeLevel = as.numeric(cut_number(Med_ncm, 3))) %>% #Split ito three even groups
-  mutate(incomeLevel=recode(incomeLevel, '1' = '1', #Rename to something clearer
-                            '2' = '2',
-                            '3' = '3')) 
-    
-  
-#View(censusPatch) #Check results
+  mutate(incomeLevel = as.numeric(cut_number(Med_ncm, 3)), #Split into three even groups
+        novelRatio = ifelse(is.na(novelRatio), min(novelRatio, na.rm = TRUE), novelRatio),
+        regRatio = ifelse(is.na(regRatio), min(regRatio, na.rm = TRUE), regRatio),
+        remRatio = ifelse(is.na(remRatio), min(remRatio, na.rm = TRUE), remRatio),
+        NovelLog = log(novelRatio),
+        RegrowthLog = log(regRatio),
+        RemnantLog = log(remRatio),
+        novelCapita = as.numeric(log(Novel/TotPop)),
+        regCapita = as.numeric(log(Regrowth/TotPop)),
+        remCapita = as.numeric(log(Remnant/TotPop)),
+        incomeLevel = as.character(incomeLevel)) #Replace NA with 0
 
-#Patch distribution is not normal. Need to fix that.
-#They are zero inflated. Need to change NA to minimum column value
-
-#I can't make this work in tidyverse, so Base R it is
-censusPatch$novelRatio[is.na(censusPatch$novelRatio)] <- 
-  min(censusPatch$novelRatio, na.rm = T) #Change NA to minimum value
-
-censusPatch$remRatio[is.na(censusPatch$remRatio)] <- 
-  min(censusPatch$remRatio, na.rm = T) #Change NA to minimum value
-
-censusPatch$regRatio[is.na(censusPatch$regRatio)] <- 
-  min(censusPatch$regRatio, na.rm = T) #Change NA to minimum value
-
-#Now, arcsin square root transform to turn ratio into something more normal
-
-#McCune and Grace asin(sqrt()) from Gord
-asin.sqrt = function(x) {
-  (2/pi)*asin(sqrt(x))
-}
-
-censusPatch$novelRatio <- log(censusPatch$novelRatio)
-
-censusPatch$remRatio <- log(censusPatch$remRatio)
-
-censusPatch$regRatio <- log(censusPatch$regRatio)
-
+#I don't know why this doesn't work
+# censusPatch%<>%
+#   mutate(incomeLevel = as.character(incomeLevel), 
+#          incomeLevel = recode(incomeLevel, 
+#                               `1` = 'Low',
+#                               `2` = 'Medium',
+#                               `3` = 'High')) 
 
 
 #Write it out
 
-st_write(censusPatch, 'CensusPatchTypeArea.shp', driver = 'ESRI Shapefile', append = TRUE)
+#st_write(censusPatch, 'CensusPatchTypeArea.shp', driver = 'ESRI Shapefile', append = TRUE)
 
 
 #Regressions--------
 
-censusPatch <- st_read('CensusPatchTypeArea.shp')
+#Don't recommend reading this in. The .shp shortens the names and makes the code not work.
+#censusPatch <- st_read('CensusPatchTypeArea.shp')
 
-long <- censusPatch %>% 
-  pivot_longer(cols = c(novelRatio, remRatio, regRatio),
+long <- censusPatch %>%
+  select(novelCapita, remCapita, regCapita, incomeLevel, Med_ncm) %>%
+  rename(Novel = novelCapita,
+         Regrowth = regCapita,
+         Remnant = remCapita) %>% 
+  pivot_longer(cols = c(Novel, Remnant, Regrowth),
                names_to = 'PatchType') %>% 
   mutate(patchRatio = as.numeric(value))
 
+
 ggplot(long, aes(x = PatchType, y = patchRatio, fill = incomeLevel))+
-  geom_boxplot(trim = TRUE, show.legend = TRUE, outlier.shape = NA) +
-  #geom_boxplot(width = 0.2, fill = '#FDF7F1') +
-  scale_fill_manual(values=c("1" = "#415c57", 
-                             "2" = "#6baa35", "3" = '#fe941c')) +
+  geom_boxplot(show.legend = TRUE) +
+  scale_fill_manual(values=c("1" = "#c9a22f", 
+                             "2" = "#9dc473", "3" = '#53813d')) +
   labs(title = 'Coverage of forest patch types by income level', 
-       x = 'Patch type', y = 'Ratio forested') +
+       x = 'Patch type', y = 'Log of ratio forested') +
   guides(fill = guide_legend(title = "Income level")) +
-  ylim(0,.15) +
-theme(legend.background = element_rect(fill = '#FDF7F1')) +
-theme(plot.background = element_rect(fill = "#FDF7F1"))
-summary(censusPatch)
+  #ylim(-10, 0) +
+  theme(legend.position = c(.25,.9),
+        legend.direction = 'horizontal') 
+  
+    #theme(legend.background = element_rect(fill = '#FDF7F1')) +
+  #theme(plot.background = element_rect(fill = "#FDF7F1")) 
 
-long <- censusPatch %>% 
-  pivot_longer(cols = c(novelRatio, remRatio, regRatio),
-               names_to = 'PatchType')
-
-ggplot(censusPatch,aes(x=Med_ncm, y=,shape=Tree))+
-  geom_point()+
-  theme_classic()
-
+#Get ready for some ugly
 ggplot(long, aes(Med_ncm, value, shape=PatchType, colour=PatchType, fill=PatchType)) +
   geom_smooth(method="lm") +
   geom_point(size=3) +
@@ -121,6 +115,38 @@ ggplot(long, aes(Med_ncm, value, shape=PatchType, colour=PatchType, fill=PatchTy
   xlab("Median income") +
   ylab("Patch ratio") +
   expand_limits(y=0) 
+
+#Linear models---------
+
+lmNovel <- glm(novelCapita ~ TotPopD+Med_ncm+House_age+Med_rent+OwnerP, 
+               family = gaussian, data = censusPatch)
+
+summary(lmNovel)
+
+lmReg <- glm(regCapita ~ TotPopD+Med_ncm+House_age+Med_rent+OwnerP,
+             family = gaussian, data = censusPatch)
+
+summary(lmReg)
+
+lmRem <- lm(remRatio ~ TotPopD+Med_ncm+House_age+Med_rent+OwnerP,
+             family = gaussian, data = censusPatch)
+
+anova(lmRem)
+coef(lmRem)
+
+lmGrouped <- lm(remRatioReg ~ incomeLevel, data = censusPatch)
+
+anova(lmGrouped)
+
+lmNovelGroup <- long %>%
+  filter(PatchType == 'novelRatioReg') %>% 
+  lm(patchRatio ~ incomeLevel, data = .)
+
+anova(lmNovelGroup)
+
+#Spatial models--------
+
+
 
 #Random forest---------
 

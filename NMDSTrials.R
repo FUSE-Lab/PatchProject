@@ -17,14 +17,13 @@ setwd("D:/Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject")
 
 coreSpecies<-read_csv('plotAttributes.csv') %>% 
   filter(edgeCore == 'Core', #Only core plots
-         patchType != "NA")  #Remove rows without trees
+         patchType != "NA") #%>%  #Remove rows without trees
 
 #Run the NMDS. Two axes, try 1000 times
 
 set.seed(123) #Make it reproducible
-NMDScoreSpecies<-metaMDS(comm = coreSpecies[,-c(1:3,117:140)], 
-                         distance = 'bray', k = 3, try = 1000)
-
+NMDScoreSpecies<-metaMDS(comm = coreSpecies[,c(4:116)], 
+                         distance = "bray", k = 3, try = 5000, trymax = 10000)
 #Check results
 NMDScoreSpecies
 
@@ -38,39 +37,72 @@ PatchCoreSpecies<-coreSpecies$patchType
 plotCoreSpecies<-coreSpecies$PlotID
 
 #Pull data from NMDS results
-data.scoresCoreSpecies <- as.data.frame(scores(NMDScoreSpecies))  #Using the scores function from vegan to extract the site scores and convert to a data.frame
+data.scoresCoreSpecies <- as.data.frame(scores(NMDScoreSpecies, display = "sites"))  #Using the scores function from vegan to extract the site scores and convert to a data.frame
 data.scoresCoreSpecies$site <- plotCoreSpecies  # create a column of site names, from the rownames of data.scores
 data.scoresCoreSpecies$PatchType <- PatchCoreSpecies  #  add the grp variable created earlier
 head(data.scoresCoreSpecies)  #look at the data
 
 #Pull species data
-species.scoresCoreSpecies <- as.data.frame(scores(NMDScoreSpecies, "species"))  #Using the scores function from vegan to extract the species scores and convert to a data.frame
+species.scoresCoreSpecies <- as.data.frame(scores(NMDScoreSpecies, display = "species"))    #Using the scores function from vegan to extract the species scores and convert to a data.frame
 species.scoresCoreSpecies$species <- rownames(species.scoresCoreSpecies)  # create a column of species, from the rownames of species.scores
 species.scoresCoreSpecies$abundance <- colSums(coreSpecies[4:116])
 order.abundance<-order(species.scoresCoreSpecies$abundance,species.scoresCoreSpecies$species)
 species.scoresCoreSpecies$rank <- NA
 species.scoresCoreSpecies$rank[order.abundance] <- 1:nrow(species.scoresCoreSpecies)
 head(species.scoresCoreSpecies)  #look at the data
-species.scoresCoreSpeciesTop <- species.scoresCoreSpecies %>% filter(rank>103) #Top 20 species
+species.scoresCoreSpeciesTop <- species.scoresCoreSpecies %>% filter(rank>98) #Top 10 species
 
 
 #Make the plot. I removed the plot names because I thought it was hard to read.
-
-ggplot() +
-  geom_point(data=data.scoresCoreSpecies,aes(x=NMDS1,y=NMDS2,shape=PatchType,colour=PatchType),size=3) + # add the point markers
-  geom_text(data=species.scoresCoreSpeciesTop,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.8) +  # add the species labels
+corePlot <- ggplot() +
+  geom_point(data=data.scoresCoreSpecies,aes(x=NMDS1,y=NMDS2,shape=PatchType,colour=PatchType),size=2) + # add the point markers
+  geom_text_repel(data=species.scoresCoreSpeciesTop,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.8, size = 3) +  # add the species labels
   #geom_text(data=data.scoresCoreSpecies,aes(x=NMDS1,y=NMDS2,label=site),size=6,vjust=0) +  # add the site labels
   scale_colour_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
   coord_equal() +
   stat_ellipse(data = data.scoresCoreSpecies, aes(x=NMDS1,y=NMDS2, colour=PatchType)) +
-  theme(legend.position="none")
-  #theme(legend.background = element_rect(fill = '#FDF7F1')) +
-  #theme(plot.background = element_rect(fill = "#FDF7F1")) +
-  #guides(fill=guide_legend(title="Forest type")) + #TODO: This isn't working
-  #labs(title = 'Ordination of sum basal area of tree species in core plots by patch types') 
+  annotate("text", x = 0.7, y = 1.2, label = 'R2 = 0.2464', size = 3) +
+  annotate("text", x = 0.75, y = 1.05, label = 'p < 0.001', size = 3) +
+  annotate("text", x = -0.85, y = 1, label = 'Novel', size = 3, color = "#59b6be") +
+  annotate("text", x = -1.2, y = -0.3, label = 'Regrowth', size = 3, color = "#d56639") +
+  annotate("text", x = 0.85, y = -0.85, label = 'Remnant', size = 3, color = "#b2a594") +
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()) +
+  xlim(-1.5,NA)
+#theme(legend.background = element_rect(fill = '#FDF7F1')) +
+#theme(plot.background = element_rect(fill = "#FDF7F1")) +
+#guides(fill=guide_legend(title="Forest type")) + #TODO: This isn't working
+#labs(title = 'Ordination of sum basal area of tree species in core plots by patch types') 
 
-#Remnant patches cluster to the left, but there is not good resolution between
-#regrowth and novel patches.
+corePlot
+
+ggsave('C:/Users/ledarlin/Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/coreNMDSPaper.png', 
+       corePlot, width = 3.75, height = 3.5, unit = "in", dpi = 300)
+
+###Poster version
+# ggplot() +
+#   geom_point(data=data.scoresCoreSpecies,aes(x=NMDS1,y=NMDS2,shape=PatchType,colour=PatchType),size=3) + # add the point markers
+#   geom_text_repel(data=species.scoresCoreSpeciesTop,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.8, size = 7) +  # add the species labels
+#   #geom_text(data=data.scoresCoreSpecies,aes(x=NMDS1,y=NMDS2,label=site),size=6,vjust=0) +  # add the site labels
+#   scale_colour_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
+#   coord_equal() +
+#   stat_ellipse(data = data.scoresCoreSpecies, aes(x=NMDS1,y=NMDS2, colour=PatchType)) +
+#   annotate("text", x = 0.7, y = 1.2, label = 'R2 = 0.2464', size = 8) +
+#   annotate("text", x = 0.75, y = 1.05, label = 'p < 0.001', size = 8) +
+#   annotate("text", x = -0.8, y = 1, label = 'Novel', size = 8, color = "#59b6be") +
+#   annotate("text", x = -1.1, y = -0.3, label = 'Regrowth', size = 8, color = "#d56639") +
+#   annotate("text", x = 0.85, y = -0.75, label = 'Remnant', size = 8, color = "#b2a594") +
+#   theme(legend.position = "none",
+#         axis.title = element_blank(),
+#         axis.text = element_blank(),
+#         axis.ticks = element_blank()) +
+#   xlim(-1.5,NA)
+#   #theme(legend.background = element_rect(fill = '#FDF7F1')) +
+#   #theme(plot.background = element_rect(fill = "#FDF7F1")) +
+#   #guides(fill=guide_legend(title="Forest type")) + #TODO: This isn't working
+#   #labs(title = 'Ordination of sum basal area of tree species in core plots by patch types') 
 
 #Core species fit------------
 
@@ -108,13 +140,13 @@ ggplot() +
 
 #Core genus---------------
 
-coreGenus<-read_csv('coreGenusBA20.csv') %>% 
+coreGenus<-read_csv('coreGenusBA20.csv') #%>% 
   select(-X41) 
 
 #Run the NMDS. Two axes, try 1000 times
 
 set.seed(123) #Make it reproducible
-NMDScoreGenus<-metaMDS(comm = coreGenus[,-c(1:3,117:140)], distance = 'bray', k = 2, try = 5000)
+NMDScoreGenus<-metaMDS(comm = coreGenus[,c(3:40)], distance = 'bray', k = 2, try = 5000)
 
 #Check results
 NMDScoreGenus
@@ -173,15 +205,16 @@ enCoreGenus
 
 #This file has plots, the patch type, and BA of each species in the columns
 edgeSpecies<-read_csv('plotAttributes.csv') %>% 
-  filter(edgeCore == 'Edge', #Only core plots
-         patchType != "NA") %>%   #Remove rows without trees%>% 
-  filter(PlotID != 6125) %>%  #This plot is all white pine and is ruining everything.
-  filter(PlotID != 665) 
-  
+  filter(edgeCore == 'Edge', #Only edge plots
+         patchType != "NA",   #Remove rows without trees%>% 
+         PlotID != 6125,  #This plot is all white pine and is ruining everything.
+         PlotID != 665) #%>% 
+
 #Run the NMDS. Two axes, try 250 times
 
 set.seed(123) #Make it reproducible
-NMDSedgeSpecies<-metaMDS(comm = edgeSpecies[,-c(1:3,117:140)], distance = 'bray', k = 3, try = 1000)
+NMDSedgeSpecies<-metaMDS(comm = edgeSpecies[,c(4:116)], 
+                         distance = "bray", k = 3, try = 1000, trymax = 1000)
 
 
 #Make a prettier plot using instructions from
@@ -194,7 +227,7 @@ PatchTypeedgeSpecies<-edgeSpecies$patchType
 plotedgeSpecies<-edgeSpecies$PlotID
 
 #Pull data from NMDS results
-data.scoresedgeSpecies <- as.data.frame(scores(NMDSedgeSpecies))  #Using the scores function from vegan to extract the site scores and convert to a data.frame
+data.scoresedgeSpecies <- as.data.frame(scores(NMDSedgeSpecies, display = "sites"))  #Using the scores function from vegan to extract the site scores and convert to a data.frame
 data.scoresedgeSpecies$site <- plotedgeSpecies  # create a column of site names, from the rownames of data.scores
 data.scoresedgeSpecies$PatchType <- PatchTypeedgeSpecies  #  add the grp variable created earlier
 head(data.scoresedgeSpecies)  #look at the data
@@ -202,27 +235,55 @@ head(data.scoresedgeSpecies)  #look at the data
 #Pull species data
 species.scoresedgeSpecies <- as.data.frame(scores(NMDSedgeSpecies, "species"))  #Using the scores function from vegan to extract the species scores and convert to a data.frame
 species.scoresedgeSpecies$species <- rownames(species.scoresedgeSpecies)  # create a column of species, from the rownames of species.scores
-species.scoresedgeSpecies$abundance <- colSums(edgeSpecies[3:98])
+species.scoresedgeSpecies$abundance <- colSums(edgeSpecies[4:116])
 order.abundance<-order(species.scoresedgeSpecies$abundance,species.scoresedgeSpecies$species)
 species.scoresedgeSpecies$rank <- NA
 species.scoresedgeSpecies$rank[order.abundance] <- 1:nrow(species.scoresedgeSpecies)
 head(species.scoresedgeSpecies)  #look at the data
-species.scoresedgeSpeciesTop <- species.scoresedgeSpecies %>% filter(rank>86) #Top 20 species
+species.scoresedgeSpeciesTop <- species.scoresedgeSpecies %>% filter(rank>98) #Top 20 species
 
 
 #Make the plot. I removed the plot names because I thought it was hard to read.
 
-ggplot() +
-  geom_text(data=species.scoresedgeSpeciesTop,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.5) +  # add the species labels
-  geom_point(data=data.scoresedgeSpecies,aes(x=NMDS1,y=NMDS2,shape=PatchType,colour=PatchType),size=3) + # add the point markers
-  #geom_text(data=data.scores,aes(x=NMDS1,y=NMDS2,label=site),size=6,vjust=0) +  # add the site labels
-  scale_colour_manual(values=c("Remnant" = "#415c57", "Regrowth" = "#6baa35", "Novel" = '#fe941c')) +
+edgePlot <- ggplot() +
+  geom_point(data=data.scoresedgeSpecies,aes(x=NMDS1,y=NMDS2,shape=PatchType,colour=PatchType),size=2) + # add the point markers
+  geom_text_repel(data=species.scoresedgeSpeciesTop,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.8, size = 3) +  # add the species labels
+  scale_colour_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
   coord_equal() +
   stat_ellipse(data = data.scoresedgeSpecies, aes(x=NMDS1,y=NMDS2, colour=PatchType)) +
-  theme(legend.background = element_rect(fill = '#FDF7F1')) +
-  theme(plot.background = element_rect(fill = "#FDF7F1")) +
-  guides(fill=guide_legend(title="Forest type")) + #TODO: This isn't working
-  labs(title = 'Ordination of sum basal area of tree species in edge plots by patch types')
+  #annotate("text", x = 0.7, y = 1.2, label = 'R2 = 0', size = 8) + #This is embarrasing
+  #annotate("text", x = 0.75, y = 1.05, label = 'p = 1', size = 8) +
+  annotate("text", x = 1, y = 0.5, label = 'Novel', size = 3, color = "#59b6be") +
+  annotate("text", x = -1, y = -0.75, label = 'Regrowth', size = 3, color = "#d56639") +
+  annotate("text", x = 0.65, y = -1, label = 'Remnant', size = 3, color = "#b2a594") +
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+edgePlot
+
+ggsave('C:/Users/ledarlin/Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/edgeNMDSPaper.png', 
+       edgePlot, width = 3.75, height = 3.5, unit = "in", dpi = 300)
+
+
+###Poster version
+
+# ggplot() +
+#   geom_point(data=data.scoresedgeSpecies,aes(x=NMDS1,y=NMDS2,shape=PatchType,colour=PatchType),size=3) + # add the point markers
+#   geom_text_repel(data=species.scoresedgeSpeciesTop,aes(x=NMDS1,y=NMDS2,label=species),alpha=0.8, size = 7) +  # add the species labels
+#   scale_colour_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
+#   coord_equal() +
+#   stat_ellipse(data = data.scoresedgeSpecies, aes(x=NMDS1,y=NMDS2, colour=PatchType)) +
+#   #annotate("text", x = 0.7, y = 1.2, label = 'R2 = 0', size = 8) + #This is embarrasing
+#   #annotate("text", x = 0.75, y = 1.05, label = 'p = 1', size = 8) +
+#   annotate("text", x = 1, y = -0.5, label = 'Novel', size = 8, color = "#59b6be") +
+#   annotate("text", x = -1, y = -0.75, label = 'Regrowth', size = 8, color = "#d56639") +
+#   annotate("text", x = -0.75, y = 1, label = 'Remnant', size = 8, color = "#b2a594") +
+#   theme(legend.position = "none",
+#         axis.title = element_blank(),
+#         axis.text = element_blank(),
+#         axis.ticks = element_blank())
 
 #Edges seem to be the same regardless of patch type.
 

@@ -254,7 +254,7 @@ mergedCore20 %>%
 
 plotCoreSpeciesBA20[2,2] <- 'Regrowth'
 
-View(plotCoreSpeciesBA20) #Looks great!
+#View(plotCoreSpeciesBA20) #Looks great!
 
 write_csv(plotCoreSpeciesBA20, 'coreSpeciesBA20.csv')
 
@@ -325,7 +325,7 @@ mergedEdge20 %>%
 
 edgeSpeciesBA20[c(7,15),2] <- 'Regrowth'
 
-View(edgeSpeciesBA20)
+#View(edgeSpeciesBA20)
 
 write_csv(edgeSpeciesBA20, 'edgeSpeciesBA20.csv')
 
@@ -380,9 +380,7 @@ trees <- plyr::rbind.fill(core, edge) %>%
 #Join plots and trees and write out file
 
 scanned <- read_csv('plotScanned.csv') %>% 
-  rename(PlotID = "PlotID,N,24,15",
-         scanned = "scanned,C,80") %>% 
-  select(PlotID,scanned,scanComplete)
+  select(PlotID, scanned, scanComplete)
 
 plotTree <- left_join(plot, trees, by = 'PlotID') %>% 
   distinct(PlotID, .keep_all = TRUE) %>% #There are a few duplicate rows.
@@ -390,11 +388,13 @@ plotTree <- left_join(plot, trees, by = 'PlotID') %>%
   drop_na(.) %>%  #A few of the plots don't have trees
   #Add sum BA column. Adding everything numeric then subtract PlotID
   dplyr::mutate(sumBA = rowSums(across(where(is.numeric)))- `PlotID`) %>% 
-  rename(edgeCore = edgeCore.x) %>% 
-  select(-edgeCore.y) %>% 
-  left_join(., scanned)
+  dplyr::rename(edgeCore = edgeCore.x) %>% 
+  dplyr::select(-edgeCore.y) %>% 
+  left_join(., scanned) %>% 
+  mutate(typeCoreEdge = paste0(patchType, edgeCore),
+         BADen = sumBA/0.0404686) #Divide by plot size to get density (m2/ha)
 
-st_write(plotTree, 'plotTypeBa.shp', driver = 'ESRI Shapefile', append = FALSE)
+#st_write(plotTree, 'plotTypeBa.shp', driver = 'ESRI Shapefile', append = FALSE)
 
 
  #Calculate trees per plot
@@ -403,27 +403,106 @@ edge20 <- read_csv('edgePlotSpecies20.csv')
 core20 <- read_csv('corePlotSpecies20.csv') 
 
 merged20 <- rbind(edge20, core20) %>% 
-  dplyr::mutate(typeCoreEdge = paste(`patchType`, `coreEdge`))
+  dplyr::mutate(typeCoreEdge = paste(`patchType`, `edgeCore`))
 
-stemsPlot <- merged20 %>% group_by(PlotID, coreEdge, typeCoreEdge, patchType) %>% 
-  dplyr::summarize(plotStems = n())
+stemsPlot <- merged20 %>% group_by(PlotID, edgeCore, typeCoreEdge, patchType) %>% 
+  dplyr::summarize(value = n()) %>%
+  mutate(metric = 'Stem density',
+         value = value/40.4686) %>% 
+  st_drop_geometry(.)
 
 #Summary stats-----------------
 
 #Violin plot of BA-------------
 
-ggplot(plotTree, aes(x = typeCoreEdge, y = sumBA, fill = patchType))+
-  geom_violin(trim = FALSE) +
-  geom_boxplot(width = 0.2, fill = '#FDF7F1') +
+longCore <- plotTree %>% select(c('PlotID', 'edgeCore', 'typeCoreEdge', 'patchType', 'BADen')) %>% 
+  dplyr::rename(value = 'BADen') %>% 
+  st_drop_geometry(.) %>% 
+  mutate(metric = 'Basal area density') %>% 
+  rbind(., stemsPlot) %>% 
+  filter(edgeCore == 'Core')
+
+
+
+ggplot(longCore, aes(x = patchType, y = value, fill = patchType))+
+  #geom_violin(trim = FALSE) +
+  geom_boxplot() +
   #stat_summary(fun.data = "mean_cl_boot", geom = "crossbar", color="#550135",
   #             fill = '#FDF7F1', width = 0.2) +
-  scale_fill_manual(values=c("Remnant" = "#415c57", 
-                             "Regrowth" = "#6baa35", "Novel" = '#fe941c')) +
-  labs(title = 'Sum of basal area across patch types', 
-       x = 'Patch type', y = 'Sum of basal area (meters squared)') +
-  guides(fill = guide_legend(title = "Forest type")) #+
-  #theme(legend.background = element_rect(fill = '#FDF7F1')) +
-  #theme(plot.background = element_rect(fill = "#FDF7F1"))
+  scale_fill_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
+  guides(fill = guide_legend(title = "Forest type")) +
+  theme(legend.position = 'none',
+        axis.title = element_blank(),
+        #axis.text.x = element_text(size = 24, angle = 45, hjust=1),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 24),
+        title = element_text(size = 24),
+        strip.text = element_text(size=24),
+        axis.ticks.x = element_blank()) +
+  facet_wrap(~metric, ncol = 2, scales = 'free') 
+  
+longEdge <- plotTree %>% select(c('PlotID', 'edgeCore', 'typeCoreEdge', 'patchType', 'BADen')) %>% 
+  dplyr::rename(value = 'BADen') %>% 
+  mutate(metric = 'Basal area density') %>% 
+  st_drop_geometry(.) %>% 
+  rbind(., stemsPlot)%>% 
+  filter(edgeCore == 'Edge')
+
+ggplot(longEdge, aes(x = patchType, y = value, fill = patchType))+
+  #geom_violin(trim = FALSE) +
+  geom_boxplot() +
+  #stat_summary(fun.data = "mean_cl_boot", geom = "crossbar", color="#550135",
+  #             fill = '#FDF7F1', width = 0.2) +
+  scale_fill_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
+  guides(fill = guide_legend(title = "Forest type")) +
+  theme(legend.position = 'none',
+        axis.title = element_blank(),
+        #axis.text.x = element_text(size = 24, angle = 45, hjust=1),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 24),
+        title = element_text(size = 24),
+        strip.text = element_text(size=24),
+        axis.ticks.x = element_blank()) +
+  facet_wrap(~metric, ncol = 2, scales = 'free') 
+  
+plotTreeEdge <- plotTree %>% filter(edgeCore == 'Edge')
+
+ggplot(plotTreeEdge, aes(x = patchType, y = BADen, fill = patchType))+
+  #geom_violin(trim = FALSE) +
+  geom_boxplot() +
+  #stat_summary(fun.data = "mean_cl_boot", geom = "crossbar", color="#550135",
+  #             fill = '#FDF7F1', width = 0.2) +
+  scale_fill_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
+  labs(title = bquote('Basal area density '(m^2/ha))) +
+  guides(fill = guide_legend(title = "Forest type")) +
+  theme(legend.position = 'none',
+        axis.title = element_blank(),
+        axis.text = element_text(size = 24),
+        title = element_text(size = 24)) 
+
+lmEdge <- lm(data = plotTreeEdge, sumBA ~ patchType)
+anova(lmEdge)
+
+plotTreeCore <- plotTree %>% filter(edgeCore == 'Core')
+
+ggplot(plotTreeCore, aes(x = patchType, y = sumBA, fill = patchType))+
+  #geom_violin(trim = FALSE) +
+  geom_boxplot() +
+  #stat_summary(fun.data = "mean_cl_boot", geom = "crossbar", color="#550135",
+  #             fill = '#FDF7F1', width = 0.2) +
+  scale_fill_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
+  labs(title = bquote('Basal area density '(m^2/ha))) +
+  guides(fill = guide_legend(title = "Forest type")) +
+  theme(legend.position = 'none',
+        axis.title = element_blank(),
+        axis.text = element_text(size = 20),
+        title = element_text(size = 24)) +
+  annotate("text", x = 1, y = 3, label = 'p < 0.03', size = 8) 
+#theme(legend.background = element_rect(fill = '#FDF7F1')) +
+#theme(plot.background = element_rect(fill = "#FDF7F1"))
+
+lmCore <- lm(data = plotTreeCore, sumBA ~ patchType)
+anova(lmCore)
 
 #Violin plot number of stems--------------
 
@@ -475,7 +554,7 @@ core<-plotTree %>%
 #pivot_wider(., id_cols = PlotID, names_from = edgeCore, values_from = sumBA)
 
 testCore<-lm(data = core, sumBA ~ patchType)
-anova(testCore) #Nope
+anova(testCore) #little bit
 par(mfcol=c(2,2))
   plot(testCore)
 
@@ -498,7 +577,7 @@ core<-stemsPlot %>%
 #dplyr::select(edgeCore, sumBA, PlotID) %>% 
 #pivot_wider(., id_cols = PlotID, names_from = edgeCore, values_from = sumBA)
 
-testCore<-lm(data = core, plotStems ~ patchType)
+testCore<-lm(data = core, value ~ patchType)
 anova(testCore) #!!! Highly significant
 plot(testCore) #Looks awesome
 
@@ -506,7 +585,7 @@ plot(testCore) #Looks awesome
 edge<-stemsPlot %>% 
   filter(edgeCore == 'Edge')
 
-testEdge<-lm(data = edge, plotStems ~ patchType)
+testEdge<-lm(data = edge, value ~ patchType)
 anova(testEdge) #Not even a little bit
 plot(testEdge)
 
