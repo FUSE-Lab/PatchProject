@@ -15,9 +15,13 @@ library(tidyverse)
 library(magrittr)         #%<>%
 library(tidylog)          #More verbose tidyverse
 library(sf)               #Spatial data
+library(gt)
+library(gtExtras)
+library(patchwork)
 
 #Set path to files
 path <- "C:/Users/ledarlin/"
+path <- "D:/"
 
 setwd(paste0(path,'Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject'))
 
@@ -135,7 +139,7 @@ plots3 <- st_read('PlotsToSample.shp') %>% #New data
 plots2020 <- rbind(plots2, plots3)
 
 #load patch data
-patch <- st_read('PatchTypeDissolve.shp')
+patch <- st_read('PatchTypeDissolve.shp') 
 
 plotPatch <- st_intersection(plots2020, patch) %>% 
   select(PlotID, PatchType) %>%  #Select what we need
@@ -198,7 +202,7 @@ stemCount <- plotTree %>%
   dplyr::group_by(PlotID, coreEdge, Type) %>% #Group by plot
   dplyr::summarize(value = n()) %>% #Count how many trees in each
   mutate(metric = 'StemDen',
-         value = value/0.0404686,
+         value = value/0.0404686/1000,
          metric = factor(metric)) %>% 
   st_drop_geometry()
 
@@ -211,14 +215,14 @@ longCore <- plotTypeBA %>%
 
 #Create new labels for facet_grid
 longCore$labels <- factor(longCore$metric, labels = c(
-  'Basal~area~m^{2}/ha', 'Stems~per~ha'))
+  'Basal~area~(m^{2}/ha)', 'Tree~density~(1000/ha)'))
 
 #The sizes of font and exports was originally written for a poster. However,
 #When I changed them to be paper-sized the lines were super fat and everything
 #looked yucky. This was the easiest way to fix it.
 corePlot <- ggplot(longCore, aes(x = Type, y = value, fill = Type))+
-  geom_violin(trim = TRUE) +
-  geom_boxplot(width = 0.2, fill = 'white') +
+  geom_boxplot() +
+  #geom_boxplot(width = 0.2, fill = 'white') +
   scale_fill_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
   guides(fill = guide_legend(title = "Forest type")) +
   theme_bw() +
@@ -229,10 +233,11 @@ corePlot <- ggplot(longCore, aes(x = Type, y = value, fill = Type))+
         title = element_text(size = 24),
         strip.text = element_text(size=24),
         axis.ticks.x = element_blank()) +
+  scale_y_continuous(labels = label_number(accuracy = 1), breaks = breaks_pretty(n = 5)) +
   facet_wrap(~labels, ncol = 2, scales = 'free', labeller = label_parsed) 
 
 corePlot
-ggsave(paste0(path, "Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/corePlotPoster.png"), 
+ggsave(paste0(path, "Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/corePlotPaperClean.png"), 
        corePlot, width = 9.25, height = 2.825, unit = "in", dpi = 300)
 
 longEdge <- plotTypeBA %>% 
@@ -243,11 +248,11 @@ longEdge <- plotTypeBA %>%
   filter(coreEdge == 'edge') 
 
 longEdge$labels <- factor(longEdge$metric, labels = c(
-  'Basal~area~m^{2}/ha', 'Stems~per~ha'))
+  'Basal~area~(m^{2}/ha)', 'Tree~density~(1000/ha)'))
 
 edgePlot <- ggplot(longEdge, aes(x = Type, y = value, fill = Type))+
-  geom_violin(trim = TRUE) +
-  geom_boxplot(width = 0.2, fill = 'white') +
+  geom_boxplot(trim = TRUE) +
+  #geom_boxplot(width = 0.2, fill = 'white') +
   scale_fill_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
   guides(fill = guide_legend(title = "Forest type")) +
   theme_bw() +
@@ -258,21 +263,62 @@ edgePlot <- ggplot(longEdge, aes(x = Type, y = value, fill = Type))+
         title = element_text(size = 24),
         strip.text = element_text(size=24),
         axis.ticks.x = element_blank()) +
+  scale_y_continuous(labels = label_number(accuracy = 1), breaks = breaks_pretty(n = 5)) +
   facet_wrap(~labels, ncol = 2, scales = 'free', labeller = label_parsed) 
 
 edgePlot
 
-ggsave(paste0(path, "Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/edgePlotPoster.png"), 
+ggsave(paste0(path, "Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/edgePlotPaperClean.png"), 
        edgePlot, width = 9.25, height = 2.825, unit = "in", dpi = 300)
 
+#Table of species summaries
+
+tab <- plotTree %>% 
+  mutate(typeHist = paste0(Type, coreEdge),
+         ba_m = (dbh_cm^2)*0.00007854) %>% 
+  group_by(PlotID, GenusSpecies, typeHist) %>% 
+  summarize(BAden = sum(ba_m)/0.0404686) %>% 
+  st_drop_geometry() %>% 
+  group_by(GenusSpecies, typeHist) %>% 
+  summarize(ba = sum(BAden))
+  
+tab <- read_csv('SpeciesSummaryWide.csv') 
+
+gt(tab) %>% 
+  gt_theme_guardian() %>% 
+  cols_label(`Species novelcore` = 'Species',
+             `Species noveledge` = 'Species',
+             `Species remnantcore` = 'Species',
+             `Species remnantedge` = 'Species',
+             `Species regrowthcore` = 'Species',
+             `Species regrowthedge` = 'Species',
+             `BA novelcore` = html('BA m<sup>2</sup>/ha'),
+             `BA noveledge` = html('BA m<sup>2</sup>/ha'),
+             `BA regrowthcore` = html('BA m<sup>2</sup>/ha'),
+             `BA regrowthedge` = html('BA m<sup>2</sup>/ha'),
+             `BA remnantcore` = html('BA m<sup>2</sup>/ha'),
+             `BA remnantedge` = html('BA m<sup>2</sup>/ha')) %>% 
+  fmt_number(decimals = 2) %>% 
+  tab_spanner(label = 'Core', columns = contains('novelcore'),    id = 'novelcore') %>% 
+  tab_spanner(label = 'Edge', columns = contains('noveledge'),    id = 'noveledge') %>% 
+  tab_spanner(label = 'Core', columns = contains('regrowthcore'), id = 'regrowthcore') %>% 
+  tab_spanner(label = 'Edge', columns = contains('regrowthedge'), id = 'regrowthedge') %>% 
+  tab_spanner(label = 'Core', columns = contains('remnantcore'),  id = 'remnantcore') %>% 
+  tab_spanner(label = 'Edge', columns = contains('remnantedge'),  id = 'remnantedge') %>% 
+  tab_spanner(label = 'Remnant',  spanners = c('remnantcore', 'remnantedge'), id = 'Remnant') %>% 
+  tab_spanner(label = 'Regrowth', spanners = c('regrowthcore', 'regrowthedge'), id = 'Regrowth') %>% 
+  tab_spanner(label = 'Novel',    spanners = c('novelcore', 'noveledge'), id = 'Novel')
+  
 #Check significance------------
 
 #Edge BA
 edgeBA <- longEdge %>% 
   filter(metric == 'BA')
 
-lmEdgeBA <- lm(value ~ Type, data = edgeBA)
+lmEdgeBA <- lm(value ~ Type*PlotID, data = edgeBA)
 
+plot(lmEdgeBA)
+summary(lmEdgeBA)
 anova(lmEdgeBA) #ns
 
 #Edge stem
@@ -562,8 +608,8 @@ patchGrid <- left_join(gridCensus, patchSums, by = 'ID') %>%
          Edge0 = drop_units(`edge`),
          Core0 = drop_units(`core`)) %>% 
   replace(is.na(.), 0) %>% 
-  st_drop_geometry(.) %>% 
-  write_csv(., 'gridData.csv')
+  #st_drop_geometry(.) %>% 
+  st_write(., 'gridData.shp', driver = 'ESRI Shapefile')
 
 #Breathe
 rm(list = ls())
@@ -844,7 +890,6 @@ tb <- read_csv('BrmsModelResults.csv')
 
 #Use gt to make a pretty table
 gt(tb) %>% 
-  gt_theme_guardian() %>% 
   fmt_number(decimals = 2)
 
 #*LiDAR!*------------
@@ -2226,6 +2271,9 @@ rm(list=ls())
 
 #Combine and join data------------
 
+library(scales)
+library(ggplot2)
+
 Cook <- read_csv(paste0(path, "Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject/LiDARProcessing/OutFolder/Cook/CookMetrics.csv"))
 DuPage <- read_csv(paste0(path, "Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject/LiDARProcessing/OutFolder/DuPage/DuPageMetrics.csv"))
 Kane <- read_csv(paste0(path, "Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject/LiDARProcessing/OutFolder/Kane/KaneMetrics.csv"))
@@ -2234,7 +2282,7 @@ Lake <- read_csv(paste0(path, "Dropbox/Forest Composition/composition/Maps/shape
 McHenry <- read_csv(paste0(path, "Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject/LiDARProcessing/OutFolder/McHenry/McHenryMetrics.csv"))
 Will <- read_csv(paste0(path, "Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject/LiDARProcessing/OutFolder/Will/WillMetrics.csv"))
 
-data <- read_csv(paste0(path, "Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject/allPlotTreeBA.csv"))
+data <- read_csv(paste0(path, "Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject/deprecated/allPlotTreeBA.csv"))
 
 combine <- rbind(Cook, DuPage, Kane, Kendall, Lake, McHenry, Will) %>% 
   dplyr::rename(PlotID = `filename`) %>% 
@@ -2248,145 +2296,174 @@ combine <- rbind(Cook, DuPage, Kane, Kendall, Lake, McHenry, Will) %>%
          PlotID != 4006,
          PlotID != 3056) 
 
-lid <- read_csv('C:/Users/ledarlin/Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject/LargerLandsatJoined.csv') %>% 
-  left_join(combine, ., by = 'PlotID')
-
-#Look across all edges. Rescaling to no units so that facet_wrap works.
-#This is not ideal for final analysis.
+#Look across all edges. 
 edge <- combine %>% filter(edgeCore == 'Edge') %>% 
-  mutate(DeepGapFraction = rescale(deepgap.fraction, to = c(-1, 1)),
-         Density = rescale(den, to = c(-1, 1)),
-         GFP = rescale(GFP, to = c(-1, 1)),
-         Gini = rescale(gini, to = c(-1, 1)),
-         Rumple = rescale(rumple, to = c(-1, 1)),
-         sd.sd = rescale(sd.sd, to = c(-1, 1)),
-         TopRugosity= rescale(top.rugosity, to = c(-1, 1)),
-         vert.sd = rescale(vert.sd, to = c(-1, 1)),
-         vertCV = rescale(vertCV, to = c(-1, 1)),
-         VAI = rescale(VAI, to = c(-1, 1)),
-         mean.max.canopy.ht = rescale(mean.max.canopy.ht, to = c(-1, 1)),
-         q100 = rescale(q100, to = c(-1, 1)),
-         q25 = rescale(q25, to = c(-1, 1)),
-         q50 = rescale(q50, to = c(-1, 1)),
-         q75 = rescale(q75, to = c(-1, 1)),
-         max.canopy.ht = rescale(max.canopy.ht, to = c(-1, 1))) %>%
-  select(c(2, 8, 9, 11:14, 16, 18:21, 142:146, 26:27)) %>% 
-  pivot_longer(cols = c(2:17),
+  mutate(DeepGapFraction = (deepgap.fraction),
+         Density = (den),
+         `GapFractionProile **` = (GFP),
+         `Gini *` = (gini),
+         Rumple = (rumple),
+         `sd.sd` = (sd.sd),
+         `TopRugosity **`= (top.rugosity),
+         `VerticalSD ***` = (vert.sd),
+         #VerticalCV = (vertCV),
+         VegetativeAreaIndex = (VAI),
+         MaxCanopyHeight = (max.canopy.ht - q0)* 0.3048,
+         MeanCanopyHeight = (mean.max.canopy.ht - q0)* 0.3048,
+         '100thQuartileHeight' = (q100 - q0)* 0.3048,
+         '25thQuartileHeight' = (q25 - q0)* 0.3048,
+         '50thQuartileHeight' = (q50 - q0)* 0.3048,
+         '75thQuartileHeight' = (q75 - q0)* 0.3048) %>%
+  select(c(2, 12, 142:155, 26:27)) %>% 
+  filter(MeanCanopyHeight<30) %>% 
+  pivot_longer(cols = c(2:16),
                names_to = 'Metric',
                values_to = 'Value') 
 
 ggplot(edge, aes(x = patchType, y = Value, fill = patchType))+
-  geom_violin(trim = TRUE) +
-  #stat_summary(fun.data = "mean_cl_boot", geom = "crossbar", color="#550135",
-  #             fill = '#FDF7F1', width = 0.2) +
+  geom_boxplot() +
+  #geom_violin(trim = TRUE) +
+  #geom_boxplot(fill = 'white', width = .2) +
   scale_fill_manual(values=c("Remnant" = "#b2a594", 
                              "Regrowth" = "#d56639", "Novel" = '#59B6BE')) +
   labs(title = 'LiDAR metrics in edge plots') +
   theme(axis.title.x = element_blank()) +
   theme(axis.title.y = element_blank()) +
-  facet_wrap(~Metric, ncol = 4) +
-  theme(legend.position = 'blank')
+  facet_wrap(~Metric, ncol = 5, scales = 'free') +
+  theme_bw(9) +
+  theme(axis.title = element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        legend.position = 'bottom') -> AllEdge
+
+AllEdge
+
+ggsave(paste0(path, 'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/AllEdge.png'),
+       AllEdge, width = 7.5, height = 6, unit = "in", dpi = 300)
 
 #Select fewer metrics
 
-edgeSelect <- lid %>% filter(edgeCore == 'Edge',
-                             ht<25) %>% 
-  mutate(`Point density (1/m)` = den.x,
+edgeSelect <- combine %>% filter(edgeCore == 'Edge') %>% #,
+                             #maxZ<25) %>% #Get rid of too tall things
+  mutate(`Point density (1/m)` = den,
          `Exterior complexity (m)` = top.rugosity* .3048*.3048,
          `Interior complexity (m)` = vert.sd* .3048*.3048,
-         `Mean canopy height (m)` = ht) %>%
+         `Mean canopy height (m)` = (mean.max.canopy.ht - q0)* 0.3048) %>%
   select(c(`Point density (1/m)`, `Exterior complexity (m)`, `Interior complexity (m)`, `Mean canopy height (m)`, patchType)) %>% 
+  filter(`Mean canopy height (m)` <30) %>% 
   pivot_longer(cols = c(1:4),
                names_to = 'Metric',
                values_to = 'Value') 
 
 edgeFig <- ggplot(edgeSelect, aes(x = patchType, y = Value, fill = patchType))+
-  geom_violin(trim = TRUE) +
-  geom_boxplot(fill = 'white', width = .2) +
+  geom_boxplot()+
+  #geom_violin(trim = TRUE) +
+  #geom_boxplot(fill = 'white', width = .2) +
   scale_fill_manual(values=c("Remnant" = "#b2a594", 
                              "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
   theme_bw() +
   theme(axis.title.x = element_blank(),
         axis.title.y = element_blank(),
         axis.ticks.x = element_blank(),
-        text = element_text(size = 28),
+        text = element_text(size = 34),
         axis.text.x = element_blank()) +
   facet_wrap(~Metric, ncol = 2, scales = 'free') +
+  scale_y_continuous(labels = label_number(accuracy = 1), breaks = breaks_pretty(n = 3)) +
   theme(legend.position = 'blank')
 
 edgeFig
 
-ggsave(paste0(path, 'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/edgeFigPaper.png'),
-       edgeFig, width = 9.75, height = 7, unit = "in", dpi = 300)
+ggsave(paste0(path, 'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/edgeFigPaperSimple.png'),
+       edgeFig, width = 9.75, height = 6, unit = "in", dpi = 300)
 
-edgeWide <- lid %>% filter(edgeCore == 'Edge')
+edgeWide <- combine %>% filter(edgeCore == 'Edge')
 
-lm <- lm(mean.max.canopy.ht~patchType, data = edgeWide, family = 'poisson') #
-anova(lm)
-lm <- lm(vert.sd~patchType, data = edgeWide) # ***
-anova(lm)
-lm <- lm(top.rugosity~patchType, data = edgeWide) # **
-anova(lm)
-lm <- lm(den.x~patchType, data = edgeWide) # ns
-anova(lm)
+anova(lm(mean.max.canopy.ht~patchType, data = edgeWide)) #ns
+anova(lm(vert.sd~patchType, data = edgeWide)) # ***
+anova(lm(top.rugosity~patchType, data = edgeWide)) # **
+anova(lm(den~patchType, data = edgeWide)) # ns
+anova(lm(q100~patchType, data = edgeWide)) #ns
+anova(lm(q25~patchType, data = edgeWide)) #ns
+anova(lm(q50~patchType, data = edgeWide)) #ns
+anova(lm(q75~patchType, data = edgeWide)) #ns
+anova(lm(deepgap.fraction~patchType, data = edgeWide)) #ns
+anova(lm(max.canopy.ht~patchType, data = edgeWide)) #ns
+anova(lm(GFP~patchType, data = edgeWide)) #*
+anova(lm(gini~patchType, data = edgeWide)) #**
+anova(lm(rumple~patchType, data = edgeWide)) #ns
+anova(lm(sd.sd~patchType, data = edgeWide)) #ns
+anova(lm(vert.sd~patchType, data = edgeWide)) #***
 
 core <- combine %>% filter(edgeCore == 'Core') %>% 
   filter(PlotID != '10006') %>% 
-  mutate(DeepGapFraction = rescale(deepgap.fraction, to = c(-1, 1)),
-         Density = rescale(den, to = c(-1, 1)),
-         GFP = rescale(GFP, to = c(-1, 1)),
-         Gini = rescale(gini, to = c(-1, 1)),
-         Rumple = rescale(rumple, to = c(-1, 1)),
-         sd.sd = rescale(sd.sd, to = c(-1, 1)),
-         TopRugosity= rescale(top.rugosity, to = c(-1, 1)),
-         vert.sd = rescale(vert.sd, to = c(-1, 1)),
-         vertCV = rescale(vertCV, to = c(-1, 1)),
-         VAI = rescale(VAI, to = c(-1, 1)),
-         mean.max.canopy.ht = rescale(mean.max.canopy.ht, to = c(-1, 1)),
-         q100 = rescale(q100, to = c(-1, 1)),
-         q25 = rescale(q25, to = c(-1, 1)),
-         q50 = rescale(q50, to = c(-1, 1)),
-         q75 = rescale(q75, to = c(-1, 1)),
-         max.canopy.ht = rescale(max.canopy.ht, to = c(-1, 1))) %>%
-  select(c(2, 8, 9, 11:14, 16, 18:21, 142:146, 26:27)) %>%
-  pivot_longer(cols = c(2:17),
+  mutate(`DeepGapFraction` = (deepgap.fraction),
+         `Density *` = (den),
+         `GapFractionProile` = (GFP),
+         `Gini ***` = (gini),
+         `Rumple **` = (rumple),
+         `sd.sd **` = (sd.sd),
+         `TopRugosity ***`= (top.rugosity),
+         `VerticalSD ***` = (vert.sd),
+         `VegetativeAreaIndex` = (VAI),
+         `MaxCanopyHeight *` = (max.canopy.ht - q0)* 0.3048,
+         `MeanCanopyHeight *` = (mean.max.canopy.ht - q0)* 0.3048,
+         '100thQuartileHeight *' = (q100 - q0)* 0.3048,
+         '25thQuartileHeight' = (q25 - q0)* 0.3048,
+         '50thQuartileHeight *' = (q50 - q0)* 0.3048,
+         '75thQuartileHeight *' = (q75 - q0)* 0.3048) %>%
+  select(c(2, 142:156, 26:27)) %>% 
+  filter(`MeanCanopyHeight *`<30) %>% 
+  pivot_longer(cols = c(2:16),
                names_to = 'Metric',
                values_to = 'Value') 
 
 ggplot(core, aes(x = patchType, y = Value, fill = patchType))+
-  #geom_boxplot() +
-  geom_violin(trim = FALSE) +
-  geom_boxplot(width = 0.2, fill = 'white') +
-  #stat_summary(fun.data = "mean_cl_boot", geom = "crossbar", color="#550135",
-  #             fill = '#FDF7F1', width = 0.2) +
+  geom_boxplot() +
+  #geom_violin(trim = FALSE) +
+  #geom_boxplot(width = 0.2, fill = 'white') +
   scale_fill_manual(values=c("Remnant" = "#b2a594", 
-                             "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
+                             "Regrowth" = "#d56639", "Novel" = '#59B6BE')) +
   labs(title = 'LiDAR metrics in core plots') +
   theme(axis.title.x = element_blank()) +
-  theme(axis.title.y = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.text.y = element_blank()) +
-  facet_wrap(~Metric, ncol = 4) +
-  theme(legend.position = 'blank')
+  theme(axis.title.y = element_blank()) +
+  facet_wrap(~Metric, ncol = 5, scales = 'free') +
+  theme_bw(9) +
+  theme(axis.title = element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        legend.position = 'blank') -> AllCore
+
+AllCore
+
+ggsave(paste0(path, 'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/AllCore.png'),
+       AllCore, width = 7.5, height = 6, unit = "in", dpi = 300)
+
+both <- AllCore/AllEdge
+
+both
+
+ggsave(paste0(path, 'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/AllMetrics.png'),
+       both, width = 7.5, height = 7, unit = "in", dpi = 300)
 
 #Select fewer metrics
 
-coreSelect <- lid %>% filter(edgeCore == 'Core') %>% 
-  filter(PlotID != '10006',
-         ht < 50) %>% 
-  mutate(`Point density (1/m)` = den.x,
+coreSelect <- combine %>% filter(edgeCore == 'Core') %>% 
+  filter(PlotID != '10006') %>% #,
+         #ht < 50) %>% 
+  mutate(`Point density (1/m)` = den,
          `Exterior complexity (m)` = top.rugosity* .3048*.3048,
          `Interior complexity (m)` = vert.sd* .3048*.3048,
-         `Mean canopy height (m)` = ht) %>%
+         `Mean canopy height (m)` = (mean.max.canopy.ht - q0)* 0.3048) %>%
   select(c(`Point density (1/m)`, `Exterior complexity (m)`, `Interior complexity (m)`, `Mean canopy height (m)`, patchType)) %>% 
+  filter(`Mean canopy height (m)` < 30) %>% 
   pivot_longer(cols = c(1:4),
                names_to = 'Metric',
                values_to = 'Value') 
 
 coreFig <- ggplot(coreSelect, aes(x = patchType, y = Value, fill = patchType))+
-  geom_violin(trim = TRUE) +
-  geom_boxplot(fill = 'white', width = .2) +
+  geom_boxplot() +
+  #geom_violin(trim = TRUE) +
+  #geom_boxplot(fill = 'white', width = .2) +
   scale_fill_manual(values=c("Remnant" = "#b2a594", 
                              "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
   theme_bw() +
@@ -2394,22 +2471,31 @@ coreFig <- ggplot(coreSelect, aes(x = patchType, y = Value, fill = patchType))+
         axis.title.y = element_blank(),
         axis.ticks.x = element_blank(),
         axis.text.x = element_blank(),
-        text = element_text(size = 28)) + 
+        text = element_text(size = 34)) + 
+  scale_y_continuous(labels = label_number(accuracy = 1), breaks = breaks_pretty(n = 3)) +
   facet_wrap(~Metric, ncol = 2, scales = 'free') +
   theme(legend.position = 'blank')
 
 coreFig
 
-ggsave(paste0(path, 'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/coreFigPaper.png'),
-       coreFig, width = 9.75, height = 7, unit = "in", dpi = 300)
+ggsave(paste0(path, 'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/coreFigPaperSimple.png'),
+       coreFig, width = 9.75, height = 6, unit = "in", dpi = 300)
 
-coreWide <- lid %>% filter(edgeCore == 'Core')
+coreWide <- combine %>% filter(edgeCore == 'Core')
 
-f <- coreWide %>% filter(patchType == 'Regrowth')
-lm <- lm(vert.sd~patchType, data = coreWide) #***
-lm <- lm(ht~patchType, data = coreWide) # **
-lm <- lm(top.rugosity~patchType, data = coreWide) # ***
-lm <- lm(den.x~patchType, data = coreWide) # *
-
-anova(lm)
+anova(lm(mean.max.canopy.ht~patchType, data = coreWide)) #*
+anova(lm(vert.sd~patchType, data = coreWide)) # ***
+anova(lm(top.rugosity~patchType, data = coreWide)) # ***
+anova(lm(den~patchType, data = coreWide)) # *
+anova(lm(q100~patchType, data = coreWide)) #*
+anova(lm(q25~patchType, data = coreWide)) #ns
+anova(lm(q50~patchType, data = coreWide)) #*
+anova(lm(q75~patchType, data = coreWide)) #*
+anova(lm(deepgap.fraction~patchType, data = coreWide)) #ns
+anova(lm(max.canopy.ht~patchType, data = coreWide)) #*
+anova(lm(GFP~patchType, data = coreWide)) #ns
+anova(lm(gini~patchType, data = coreWide)) #***
+anova(lm(rumple~patchType, data = coreWide)) #**
+anova(lm(sd.sd~patchType, data = coreWide)) #**
+anova(lm(vert.sd~patchType, data = coreWide)) #***
 
