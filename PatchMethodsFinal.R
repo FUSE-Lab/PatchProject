@@ -8,6 +8,11 @@
 #The starred section headers can be run independently so long as the initial
 #code was run previously to make the necessary layers.
 
+#Plot data are available on FigShare: https://figshare.com/projects/Ecological_and_developmental_history_impacts_the_equitable_distribution_of_services/211366
+#To skip the spatial analysis, use the file "plotTypeBA.csv" from figshare and
+#skip to the "Start here to skip data munging" tab.
+
+
 #*Load libraries*---------------
 
 library(plyr)             #For join flexibility
@@ -18,9 +23,9 @@ library(sf)               #Spatial data
 library(gt)
 library(gtExtras)
 library(patchwork)
+library(scales)
 
 #Set path to files
-path <- "C:/Users/ledarlin/"
 path <- "D:/"
 
 setwd(paste0(path,'Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject'))
@@ -49,7 +54,7 @@ coreEdge <- st_read('CoreAndEdge.shp') %>%
                             if_else(gridcode == 3, 'core', 'none'))) %>% 
   dplyr::select(coreEdge)
 
-#Isolate wooded areas in the PLS------------
+#Isolate wooded areas in the PLS
 
 woods <- veg %>% 
   filter(ECOSYSTEM %in% c('Thicket', 'Barrens', 'Woodland')) #Only wooded ecosystem types
@@ -75,11 +80,11 @@ remEdgeCore <- st_intersection(coreEdge, midCen) %>%
 #   st_difference(.,remEdgeCore) #Erase things that are remnants (ie forested in 1939)   
 
 regrowthEdgeCore <- st_read('RegrowthCoreEdge.shp') %>% 
-  sf::st_transform(., crs = 5070) %>% 
+  sf::st_transform(., crs = 5070) %>% #change projection
   st_make_valid(.) %>% #Fix topology
-  mutate(coreEdge = if_else(gridcode == 2, 'edge',
+  mutate(coreEdge = if_else(gridcode == 2, 'edge', #Better names
                             if_else(gridcode == 3, 'core', 'none')),
-         Type = 'Regrowth') %>% 
+         Type = 'Regrowth') %>% #give type
   dplyr::select(coreEdge, Type)
 
 #!!! Again, st_difference keeps failing. I am doing the same process using 
@@ -119,7 +124,7 @@ PatchType <- remEdgeCore %>%
 
 rm(list = ls())
 
-path <- "C:/Users/ledarlin/"
+path <- "D:/"
 
 #*Identify plot types*------------------
 
@@ -169,6 +174,52 @@ plotTree <- read.csv('PatchTreeData.csv') %>%
   left_join(plotPatch, ., by = 'PlotID') %>% #Get patch types
   na.omit() #A few plots don't have trees
 
+#Table of species summaries
+
+tab <- plotTree %>% 
+  mutate(typeHist = paste0(Type, coreEdge),
+         ba_m = (dbh_cm^2)*0.00007854) %>% 
+  group_by(PlotID, GenusSpecies, typeHist) %>% 
+  summarize(BAden = sum(ba_m)/0.0404686) %>% 
+  st_drop_geometry() %>% 
+  group_by(GenusSpecies, typeHist) %>% 
+  summarize(ba = sum(BAden))
+
+tab <- read_csv('SpeciesSummaryWide.csv') 
+
+gt(tab) %>% 
+  gt_theme_guardian() %>% 
+  cols_label(`Species novelcore` = 'Species',
+             `Species noveledge` = 'Species',
+             `Species remnantcore` = 'Species',
+             `Species remnantedge` = 'Species',
+             `Species regrowthcore` = 'Species',
+             `Species regrowthedge` = 'Species',
+             `BA novelcore` = html('BA m<sup>2</sup>/ha'),
+             `BA noveledge` = html('BA m<sup>2</sup>/ha'),
+             `BA regrowthcore` = html('BA m<sup>2</sup>/ha'),
+             `BA regrowthedge` = html('BA m<sup>2</sup>/ha'),
+             `BA remnantcore` = html('BA m<sup>2</sup>/ha'),
+             `BA remnantedge` = html('BA m<sup>2</sup>/ha')) %>% 
+  fmt_number(decimals = 2) %>% 
+  tab_spanner(label = 'Core', columns = contains('novelcore'),    id = 'novelcore') %>% 
+  tab_spanner(label = 'Edge', columns = contains('noveledge'),    id = 'noveledge') %>% 
+  tab_spanner(label = 'Core', columns = contains('regrowthcore'), id = 'regrowthcore') %>% 
+  tab_spanner(label = 'Edge', columns = contains('regrowthedge'), id = 'regrowthedge') %>% 
+  tab_spanner(label = 'Core', columns = contains('remnantcore'),  id = 'remnantcore') %>% 
+  tab_spanner(label = 'Edge', columns = contains('remnantedge'),  id = 'remnantedge') %>% 
+  tab_spanner(label = 'Remnant',  spanners = c('remnantcore', 'remnantedge'), id = 'Remnant') %>% 
+  tab_spanner(label = 'Regrowth', spanners = c('regrowthcore', 'regrowthedge'), id = 'Regrowth') %>% 
+  tab_spanner(label = 'Novel',    spanners = c('novelcore', 'noveledge'), id = 'Novel')
+
+#Grab stem count per plot
+stemCount <- plotTree %>% 
+  dplyr::group_by(PlotID) %>% #Group by plot
+  dplyr::summarize(StemDen = n()) %>% #Count how many trees in each
+  mutate(StemDen = StemDen/0.0404686/1000) %>% 
+  st_drop_geometry() %>% 
+  select(PlotID, StemDen)
+
 #Create table with plots and each species BA and stem count
 
 plotTypeBA <- plotTree %>% 
@@ -193,24 +244,27 @@ plotTypeBA <- plotTree %>%
                           PlotID == 10014 ~"Novel",
                           PlotID == 10020 ~"Regrowth",
                           TRUE ~ Type)) %>% 
-  write_csv(., 'PlotTypeBA.csv') #Write this big boi so that we can get him later
+  left_join(., stemCount, by = 'PlotID') %>% 
+  write_csv(., 'plotTypeBA.csv') #Write this big boi so that we can get him later
+
+#***Start here to skip data munging*--------------
+
+rm(list = ls())
+
+path <- 'D:/'
+setwd(paste0(path,'Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject'))
+
+
+plotTypeBA <- read_csv(paste0(path, 'Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject/plotTypeBA.csv'))
 
 #Make BA and stem plots---------
 
-#Grab stem count per plot
-stemCount <- plotTree %>% 
-  dplyr::group_by(PlotID, coreEdge, Type) %>% #Group by plot
-  dplyr::summarize(value = n()) %>% #Count how many trees in each
-  mutate(metric = 'StemDen',
-         value = value/0.0404686/1000,
-         metric = factor(metric)) %>% 
-  st_drop_geometry()
-
 longCore <- plotTypeBA %>% 
-  select(c('PlotID', 'coreEdge', 'Type', 'BADen')) %>% 
-  dplyr::rename(value = 'BADen') %>% 
-  mutate(metric = factor("BA")) %>% 
-  rbind(., stemCount) %>% 
+  select(c('PlotID', 'coreEdge', 'Type', 'BADen', 'StemDen')) %>% 
+  pivot_longer(cols = ends_with("Den"),
+               names_to = 'metric',
+               values_to = 'value') %>% 
+  #mutate(metric = factor("BA")) %>% 
   filter(coreEdge == 'core') 
 
 #Create new labels for facet_grid
@@ -241,17 +295,17 @@ ggsave(paste0(path, "Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/core
        corePlot, width = 9.25, height = 2.825, unit = "in", dpi = 300)
 
 longEdge <- plotTypeBA %>% 
-  select(c('PlotID', 'coreEdge', 'Type', 'BADen')) %>% 
-  dplyr::rename(value = 'BADen') %>% 
-  mutate(metric = factor("BA")) %>% 
-  rbind(., stemCount) %>% 
+  select(c('PlotID', 'coreEdge', 'Type', 'BADen', 'StemDen')) %>% 
+  pivot_longer(cols = ends_with("Den"),
+               names_to = 'metric',
+               values_to = 'value') %>% 
   filter(coreEdge == 'edge') 
 
 longEdge$labels <- factor(longEdge$metric, labels = c(
   'Basal~area~(m^{2}/ha)', 'Tree~density~(1000/ha)'))
 
 edgePlot <- ggplot(longEdge, aes(x = Type, y = value, fill = Type))+
-  geom_boxplot(trim = TRUE) +
+  geom_boxplot() +
   #geom_boxplot(width = 0.2, fill = 'white') +
   scale_fill_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
   guides(fill = guide_legend(title = "Forest type")) +
@@ -271,49 +325,11 @@ edgePlot
 ggsave(paste0(path, "Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/edgePlotPaperClean.png"), 
        edgePlot, width = 9.25, height = 2.825, unit = "in", dpi = 300)
 
-#Table of species summaries
-
-tab <- plotTree %>% 
-  mutate(typeHist = paste0(Type, coreEdge),
-         ba_m = (dbh_cm^2)*0.00007854) %>% 
-  group_by(PlotID, GenusSpecies, typeHist) %>% 
-  summarize(BAden = sum(ba_m)/0.0404686) %>% 
-  st_drop_geometry() %>% 
-  group_by(GenusSpecies, typeHist) %>% 
-  summarize(ba = sum(BAden))
-  
-tab <- read_csv('SpeciesSummaryWide.csv') 
-
-gt(tab) %>% 
-  gt_theme_guardian() %>% 
-  cols_label(`Species novelcore` = 'Species',
-             `Species noveledge` = 'Species',
-             `Species remnantcore` = 'Species',
-             `Species remnantedge` = 'Species',
-             `Species regrowthcore` = 'Species',
-             `Species regrowthedge` = 'Species',
-             `BA novelcore` = html('BA m<sup>2</sup>/ha'),
-             `BA noveledge` = html('BA m<sup>2</sup>/ha'),
-             `BA regrowthcore` = html('BA m<sup>2</sup>/ha'),
-             `BA regrowthedge` = html('BA m<sup>2</sup>/ha'),
-             `BA remnantcore` = html('BA m<sup>2</sup>/ha'),
-             `BA remnantedge` = html('BA m<sup>2</sup>/ha')) %>% 
-  fmt_number(decimals = 2) %>% 
-  tab_spanner(label = 'Core', columns = contains('novelcore'),    id = 'novelcore') %>% 
-  tab_spanner(label = 'Edge', columns = contains('noveledge'),    id = 'noveledge') %>% 
-  tab_spanner(label = 'Core', columns = contains('regrowthcore'), id = 'regrowthcore') %>% 
-  tab_spanner(label = 'Edge', columns = contains('regrowthedge'), id = 'regrowthedge') %>% 
-  tab_spanner(label = 'Core', columns = contains('remnantcore'),  id = 'remnantcore') %>% 
-  tab_spanner(label = 'Edge', columns = contains('remnantedge'),  id = 'remnantedge') %>% 
-  tab_spanner(label = 'Remnant',  spanners = c('remnantcore', 'remnantedge'), id = 'Remnant') %>% 
-  tab_spanner(label = 'Regrowth', spanners = c('regrowthcore', 'regrowthedge'), id = 'Regrowth') %>% 
-  tab_spanner(label = 'Novel',    spanners = c('novelcore', 'noveledge'), id = 'Novel')
-  
 #Check significance------------
 
 #Edge BA
 edgeBA <- longEdge %>% 
-  filter(metric == 'BA')
+  filter(metric == 'BADen')
 
 lmEdgeBA <- lm(value ~ Type*PlotID, data = edgeBA)
 
@@ -333,7 +349,7 @@ anova(lmCoreBA) #ns
 #Core BA
 
 coreBA <- longCore %>% 
-  filter(metric == 'BA')
+  filter(metric == 'BADen')
 
 lmCoreBA <- lm(value ~ Type, data = coreBA)
 
@@ -352,7 +368,7 @@ anova(lmCoreStem) #*
 
 rm(list = ls())
 
-path <- "C:/Users/ledarlin/"
+path <- "D:/"
 
 #*NMDS*------------
 
@@ -367,7 +383,7 @@ coreSpecies<-read_csv('plotTypeBA.csv') %>%
 #Run the NMDS. Three axes, try 10000 times
 
 set.seed(123) #Make it reproducible
-NMDScoreSpecies<-metaMDS(comm = coreSpecies[,c(4:104)], 
+NMDScoreSpecies<-metaMDS(comm = coreSpecies[,c(4:108)], 
                          distance = "bray", k = 3, try = 10000, trymax = 10000)
 #Check results
 NMDScoreSpecies
@@ -390,7 +406,7 @@ head(data.scoresCoreSpecies)  #look at the data
 #Pull species data
 species.scoresCoreSpecies <- as.data.frame(scores(NMDScoreSpecies, display = "species"))   #Using the scores function from vegan to extract the species scores and convert to a data.frame
 species.scoresCoreSpecies$species <- rownames(species.scoresCoreSpecies)  # create a column of species, from the rownames of species.scores
-species.scoresCoreSpecies$abundance <- colSums(coreSpecies[4:104])
+species.scoresCoreSpecies$abundance <- colSums(coreSpecies[4:108])
 order.abundance<-order(species.scoresCoreSpecies$abundance,species.scoresCoreSpecies$species)
 species.scoresCoreSpecies$rank <- NA
 species.scoresCoreSpecies$rank[order.abundance] <- 1:nrow(species.scoresCoreSpecies)
@@ -398,7 +414,7 @@ species.scoresCoreSpecies %<>% separate(`species`, c("genus", "species"), sep = 
   mutate(genusAb = substr(genus, 1, 1),
          speciesAb = paste0(genusAb, ". ", species))
 head(species.scoresCoreSpecies)  #look at the data
-species.scoresCoreSpeciesTop <- species.scoresCoreSpecies %>% filter(rank>86) #Top 15 species
+species.scoresCoreSpeciesTop <- species.scoresCoreSpecies %>% filter(rank>90) #Top 15 species
 
 
 #Make the plot. I removed the plot names because I thought it was hard to read.
@@ -428,13 +444,12 @@ corePlot <- ggplot() +
 
 corePlot
 
-ggsave('C:/Users/ledarlin/Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/coreNMDSPoster_bw.png', 
+ggsave(paste0(path,'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/coreNMDSPoster_bw.png'), 
        corePlot, width = 6.5, height = 6, unit = "in", dpi = 300)
 
 #Core species fit------------
 
 envCoreSpecies <- coreSpecies[,c(2)]
-# , 117, 118,122,123,128,129,131,139,140)] #If you want to add the other variables
 
 envCoreSpecies <- envfit(NMDScoreSpecies, envCoreSpecies, perm = 999, na.rm = TRUE)
 
@@ -446,13 +461,11 @@ envCoreSpecies
 edgeSpecies<-read_csv('plotTypeBA.csv') %>% 
   filter(coreEdge == 'edge', #Only core plot
          PlotID != 6125)#,  #This plot is all white pine and is ruining everything.
-        # PlotID != 665)  #These are not patches. Only 1 or 2 trees
- 
 
 #Run the NMDS. Two axes, try 10000 times
 
 set.seed(123) #Make it reproducible
-NMDSedgeSpecies<-metaMDS(comm = edgeSpecies[,c(4:106)], 
+NMDSedgeSpecies<-metaMDS(comm = edgeSpecies[,c(4:108)], 
                          distance = "bray", k = 3, try = 1000, trymax = 1000)
 
 #Create group variable
@@ -470,7 +483,7 @@ head(data.scoresedgeSpecies)  #look at the data
 #Pull species data
 species.scoresedgeSpecies <- as.data.frame(scores(NMDSedgeSpecies, "species"))  #Using the scores function from vegan to extract the species scores and convert to a data.frame
 species.scoresedgeSpecies$species <- rownames(species.scoresedgeSpecies)  # create a column of species, from the rownames of species.scores
-species.scoresedgeSpecies$abundance <- colSums(edgeSpecies[4:110])
+species.scoresedgeSpecies$abundance <- colSums(edgeSpecies[4:108])
 order.abundance<-order(species.scoresedgeSpecies$abundance,species.scoresedgeSpecies$species)
 species.scoresedgeSpecies$rank <- NA
 species.scoresedgeSpecies$rank[order.abundance] <- 1:nrow(species.scoresedgeSpecies)
@@ -478,7 +491,7 @@ species.scoresedgeSpecies %<>% separate(`species`, c("genus", "species"), sep = 
   mutate(genusAb = substr(genus, 1, 1),
          speciesAb = paste0(genusAb, ". ", species))
 head(species.scoresedgeSpecies)  #look at the data
-species.scoresedgeSpeciesTop <- species.scoresedgeSpecies %>% filter(rank>87) #Top 15 species
+species.scoresedgeSpeciesTop <- species.scoresedgeSpecies %>% filter(rank>90) #Top 15 species
 
 #Make the plot. 
 
@@ -503,7 +516,7 @@ edgePlot <- ggplot() +
 
 edgePlot
 
-ggsave('C:/Users/ledarlin/Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/edgeNMDSPoster_bw.png', 
+ggsave(paste0(path,'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/edgeNMDSPoster_bw.png'), 
        edgePlot, width = 6.5, height = 6, unit = "in", dpi = 300)
 
 #Edges seem to be the same regardless of patch type.
@@ -520,7 +533,7 @@ enEdgeSpecies
 
 rm(list = ls())
 
-path <- "C:/Users/ledarlin/"
+path <- "D:/"
 
 #*Grid patch and race data*----------
 
@@ -614,7 +627,7 @@ patchGrid <- left_join(gridCensus, patchSums, by = 'ID') %>%
 #Breathe
 rm(list = ls())
 
-path <- "C:/Users/ledarlin/"
+path <- "D:/"
 
 #*Race and patches*---------------
 
