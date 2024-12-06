@@ -26,7 +26,7 @@ library(patchwork)
 library(scales)
 
 #Set path to files
-path <- "D:/"
+path <- "C:/Users/ledar/"
 
 setwd(paste0(path,'Dropbox/Forest Composition/composition/Maps/shapefiles/PatchProject'))
 
@@ -269,7 +269,7 @@ longCore <- plotTypeBA %>%
 
 #Create new labels for facet_grid
 longCore$labels <- factor(longCore$metric, labels = c(
-  'Basal~area~(m^{2}/ha)', 'Tree~density~(1000/ha)'))
+  'BA~(m^{2}/ha)', 'Stems~(1000/ha)'))
 
 #The sizes of font and exports was originally written for a poster. However,
 #When I changed them to be paper-sized the lines were super fat and everything
@@ -279,7 +279,7 @@ corePlot <- ggplot(longCore, aes(x = Type, y = value, fill = Type))+
   #geom_boxplot(width = 0.2, fill = 'white') +
   scale_fill_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
   guides(fill = guide_legend(title = "Forest type")) +
-  theme_bw() +
+  theme_classic() +
   theme(legend.position = 'none',
         axis.title = element_blank(),
         axis.text.x = element_blank(),
@@ -287,8 +287,14 @@ corePlot <- ggplot(longCore, aes(x = Type, y = value, fill = Type))+
         title = element_text(size = 24),
         strip.text = element_text(size=24),
         axis.ticks.x = element_blank()) +
-  scale_y_continuous(labels = label_number(accuracy = 1), breaks = breaks_pretty(n = 5)) +
-  facet_wrap(~labels, ncol = 2, scales = 'free', labeller = label_parsed) 
+  #scale_y_continuous(labels = label_number(accuracy = 1), breaks = breaks_pretty(n = 5)) +
+  facet_wrap(~labels, ncol = 2, scales = 'free',
+             labeller = label_parsed,
+             #labeller = as_labeller(metric = var_names, default = label_parsed), 
+             switch = 'y') +
+  theme(strip.placement = 'outside',
+        strip.background = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black"))
 
 corePlot
 ggsave(paste0(path, "Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/corePlotPaperClean.png"), 
@@ -301,15 +307,16 @@ longEdge <- plotTypeBA %>%
                values_to = 'value') %>% 
   filter(coreEdge == 'edge') 
 
+#Create new labels for facet_grid
 longEdge$labels <- factor(longEdge$metric, labels = c(
-  'Basal~area~(m^{2}/ha)', 'Tree~density~(1000/ha)'))
+  'BA~(m^{2}/ha)', 'Stems~(1000/ha)'))
 
 edgePlot <- ggplot(longEdge, aes(x = Type, y = value, fill = Type))+
   geom_boxplot() +
   #geom_boxplot(width = 0.2, fill = 'white') +
   scale_fill_manual(values=c("Remnant" = "#b2a594", "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
   guides(fill = guide_legend(title = "Forest type")) +
-  theme_bw() +
+  theme_classic() +
   theme(legend.position = 'none',
         axis.title = element_blank(),
         axis.text.x = element_blank(),
@@ -318,7 +325,12 @@ edgePlot <- ggplot(longEdge, aes(x = Type, y = value, fill = Type))+
         strip.text = element_text(size=24),
         axis.ticks.x = element_blank()) +
   scale_y_continuous(labels = label_number(accuracy = 1), breaks = breaks_pretty(n = 5)) +
-  facet_wrap(~labels, ncol = 2, scales = 'free', labeller = label_parsed) 
+  facet_wrap(~labels, ncol = 2, scales = 'free',
+             labeller = label_parsed,
+             switch = 'y') +
+  theme(strip.placement = 'outside',
+        strip.background = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black"))
 
 edgePlot
 
@@ -431,21 +443,18 @@ corePlot <- ggplot() +
   annotate("text", x = -0.4, y = 0.55, label = 'Novel', size = 6, color = "#59b6be", fontface = 'bold') +
   annotate("text", x = -0.75, y = -0.0, label = 'Regrowth', size = 6, color = "#d56639", fontface = 'bold') +
   annotate("text", x = 0.35, y = -0.5, label = 'Remnant', size = 6, color = "#b2a594", fontface = 'bold') +
-  theme_bw() +
+  theme_classic() +
   xlim(c(-0.86, .55)) +
   theme(legend.position = "none",
         axis.title = element_blank(),
         axis.text = element_blank(),
-        axis.ticks = element_blank()) 
-#theme(legend.background = element_rect(fill = '#FDF7F1')) +
-#theme(plot.background = element_rect(fill = "#FDF7F1")) +
-#guides(fill=guide_legend(title="Forest type")) + #TODO: This isn't working
-#labs(title = 'Ordination of sum basal area of tree species in core plots by patch types') 
+        axis.ticks = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black")) 
 
 corePlot
 
 ggsave(paste0(path,'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/coreNMDSPoster_bw.png'), 
-       corePlot, width = 6.5, height = 6, unit = "in", dpi = 300)
+       corePlot, width = 6.5, height = 5.5, unit = "in", dpi = 300)
 
 #Core species fit------------
 
@@ -466,7 +475,7 @@ edgeSpecies<-read_csv('plotTypeBA.csv') %>%
 
 set.seed(123) #Make it reproducible
 NMDSedgeSpecies<-metaMDS(comm = edgeSpecies[,c(4:108)], 
-                         distance = "bray", k = 3, try = 1000, trymax = 1000)
+                         distance = "bray", k = 3, try = 10000, trymax = 1000)
 
 #Create group variable
 PatchTypeedgeSpecies<-edgeSpecies$Type
@@ -507,17 +516,18 @@ edgePlot <- ggplot() +
   annotate("text", x = .4, y = 0.65, label = 'Novel', size = 6, color = "#59b6be", fontface = 'bold') +
   annotate("text", x = -.75, y = 0.55, label = 'Regrowth', size = 6, color = "#d56639", fontface = 'bold') +
   annotate("text", .87, y = 0, label = 'Remnant', size = 6, color = "#b2a594", fontface = 'bold') +
-  theme_bw() +
+  theme_classic() +
   xlim(c(-1,1)) +
   theme(legend.position = "none",
         axis.title = element_blank(),
         axis.text = element_blank(),
-        axis.ticks = element_blank())
+        axis.ticks = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black"))
 
 edgePlot
 
 ggsave(paste0(path,'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/edgeNMDSPoster_bw.png'), 
-       edgePlot, width = 6.5, height = 6, unit = "in", dpi = 300)
+       edgePlot, width = 6.5, height = 5.5, unit = "in", dpi = 300)
 
 #Edges seem to be the same regardless of patch type.
 
@@ -737,12 +747,15 @@ summary(model_gamma_hurdle_hist) #Model results (Use these for summary table)
 View(coef(model_gamma_hurdle_hist))
 pp_check(model_gamma_hurdle_hist)
 
-#Prep for figures
+#Prep for figures (slow...)
 df3 <- df2 %>%
-  group_by(type) %>%
-  add_epred_draws(model_gamma_hurdle_hist, dpar = 'hu') #%>%
+  group_by(Type) %>%
+  add_epred_draws(model_gamma_hurdle_hist, dpar = 'hu') %>%
+  #Frontiers doesn't want % signs, so changing to *100)
+  mutate(WhtPopP = WhtPopP*100,
+         hu = hu*100)
 
-regress_hist <- ggplot(data = df3, aes(x = WhtPopP, y = type, color = type, fill = type)) +
+regress_hist <- ggplot(data = df3, aes(x = WhtPopP, y = Type, color = Type, fill = Type)) +
   stat_lineribbon(aes(y = .epred), .width = 0.95, alpha = 0.5) +
   scale_colour_manual(values=c("Remnant0" = "#b2a594", 
                                "Regrowth0" = "#d56639", "Novel0" = '#59B6BE')) +
@@ -750,34 +763,36 @@ regress_hist <- ggplot(data = df3, aes(x = WhtPopP, y = type, color = type, fill
                                    "Regrowth0" = "#d56639", "Novel0" = '#59B6BE'), 0.2)) +
   xlab("Percent white population") +
   ylab("Forest cover (ha)") +
-  scale_x_continuous(labels = scales::percent, limits = c(0,1)) +
-  theme_bw() +
+  #scale_x_continuous(labels = scales::percent, limits = c(0,1)) +
+  theme_classic() +
   theme(legend.position = 'none',
-        text = element_text(size = 11))
+        text = element_text(size = 11),
+        panel.border = element_rect(fill = NA, color = "black"))
 
 regress_hist
 
-ggsave(paste0(path,'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/PatchSocialRegressCoreOnly.png'), 
+ggsave(paste0(path,'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/PatchSocialRegress.png'), 
        regress_hist, width = 3.5, height = 2.25, unit = "in", dpi = 300)
 
 
-hu_hist <- ggplot(data = df3, aes(x = WhtPopP, y = type, color = type, fill = type)) +
+hu_hist <- ggplot(data = df3, aes(x = WhtPopP, y = Type, color = Type, fill = Type)) +
   stat_lineribbon(aes(y = hu), .width = 0.95) +
   scale_colour_manual(values=c("Remnant0" = "#b2a594", 
                                "Regrowth0" = "#d56639", "Novel0" = '#59B6BE')) +
   scale_fill_manual(values=alpha(c("Remnant0" = "#b2a594", 
                                    "Regrowth0" = "#d56639", "Novel0" = '#59B6BE'), 0.2)) +
   xlab("Percent white population") +
-  ylab("Likelihood of zero forests") +
-  scale_x_continuous(labels = scales::percent, limits = c(0, 1)) +
-  scale_y_continuous(labels = scales::percent, limits = c(0, 0.8)) +
-  theme_bw() +
+  ylab("Percent likelihood\nof zero forests") +
+  #scale_x_continuous(labels = scales::percent, limits = c(0, 1)) +
+  #scale_y_continuous(labels = scales::percent, limits = c(0, 0.8)) +
+  theme_classic() +
   theme(legend.position = 'none',
-        text = element_text(size = 11))
+        text = element_text(size = 11),
+        panel.border = element_rect(fill = NA, color = "black"))
 
 hu_hist
 
-ggsave(paste0(path,'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/PatchSocialHuCoreOnly.png'), 
+ggsave(paste0(path,'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/PatchSocialHu.png'), 
        hu_hist, width = 3.5, height = 2.25, unit = "in", dpi = 300)
 
 #Edge/core-------
@@ -801,7 +816,9 @@ pp_check(model_gamma_hurdle_edge)
 
 df5 <- df4 %>%
   group_by(type) %>%
-  add_epred_draws(model_gamma_hurdle_edge, dpar = 'hu') #%>%
+  add_epred_draws(model_gamma_hurdle_edge, dpar = 'hu') %>%
+  mutate(WhtPopP = WhtPopP*100,
+         hu = hu*100)
 
 regress_edge <- ggplot(data = df5, aes(x = WhtPopP, y = type, color = type, fill = type)) +
   stat_lineribbon(aes(y = .epred), .width = 0.95, alpha = 0.5) +
@@ -811,16 +828,16 @@ regress_edge <- ggplot(data = df5, aes(x = WhtPopP, y = type, color = type, fill
                                    "Edge0" = "#c9a224"), 0.2)) +
   xlab("Percent white population") +
   ylab("Forest cover (ha)") +
-  scale_x_continuous(labels = scales::percent, limits = c(0,1)) +
-  theme_bw() +
+  #scale_x_continuous(labels = scales::percent, limits = c(0,1)) +
+  theme_classic() +
   theme(legend.position = 'none',
-        text = element_text(size = 11))
+        text = element_text(size = 11),
+        panel.border = element_rect(fill = NA, color = "black"))
 
 regress_edge
 
 ggsave(paste0(path,'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/EdgeCoreRegress.png'), 
-       regres_edges, width = 3.5, height = 2.25, unit = "in", dpi = 300)
-
+       regress_edge, width = 3.5, height = 2.25, unit = "in", dpi = 300)
 
 hu_edge <- ggplot(data = df5, aes(x = WhtPopP, y = type, color = type, fill = type)) +
   stat_lineribbon(aes(y = hu), .width = 0.95) +
@@ -829,18 +846,18 @@ hu_edge <- ggplot(data = df5, aes(x = WhtPopP, y = type, color = type, fill = ty
   scale_fill_manual(values=alpha(c("Core0" = "#53813d", 
                                    "Edge0" = "#c9a224"), 0.2)) +
   xlab("Percent white population") +
-  ylab("Likelihood of zero forests") +
-  scale_x_continuous(labels = scales::percent, limits = c(0, 1)) +
-  scale_y_continuous(labels = scales::percent, limits = c(0, 0.2)) +
-  theme_bw() +
+  ylab("Percent likelihood\nof zero forests") +
+  #scale_x_continuous(labels = scales::percent, limits = c(0, 1)) +
+  #scale_y_continuous(labels = scales::percent, limits = c(0, 0.2)) +
+  theme_classic() +
   theme(legend.position = 'none',
-        text = element_text(size = 11))
+        text = element_text(size = 11),
+        panel.border = element_rect(fill = NA, color = "black"))
 
 hu_edge
 
 ggsave(paste0(path,'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/EdgeCoreHu.png'), 
        hu_edge, width = 3.5, height = 2.25, unit = "in", dpi = 300)
-
 
 #All patches--------------
 
@@ -2311,43 +2328,46 @@ combine <- rbind(Cook, DuPage, Kane, Kendall, Lake, McHenry, Will) %>%
 
 #Look across all edges. 
 edge <- combine %>% filter(edgeCore == 'Edge') %>% 
-  mutate(DeepGapFraction = (deepgap.fraction),
+  mutate(`Deep gap fraction` = (deepgap.fraction),
          Density = (den),
-         `GapFractionProile **` = (GFP),
+         `Gap fraction **` = (GFP),
          `Gini *` = (gini),
          Rumple = (rumple),
          `sd.sd` = (sd.sd),
-         `TopRugosity **`= (top.rugosity),
-         `VerticalSD ***` = (vert.sd),
+         `Top rugosity **`= (top.rugosity),
+         `Vertical SD ***` = (vert.sd),
          #VerticalCV = (vertCV),
-         VegetativeAreaIndex = (VAI),
-         MaxCanopyHeight = (max.canopy.ht - q0)* 0.3048,
-         MeanCanopyHeight = (mean.max.canopy.ht - q0)* 0.3048,
-         '100thQuartileHeight' = (q100 - q0)* 0.3048,
-         '25thQuartileHeight' = (q25 - q0)* 0.3048,
-         '50thQuartileHeight' = (q50 - q0)* 0.3048,
-         '75thQuartileHeight' = (q75 - q0)* 0.3048) %>%
+         `Vegetative Area Index` = (VAI),
+         `Max canopy height` = (max.canopy.ht - q0)* 0.3048,
+         `Mean canopy height` = (mean.max.canopy.ht - q0)* 0.3048,
+         '100th qrtl height' = (q100 - q0)* 0.3048,
+         '25th qrtl height' = (q25 - q0)* 0.3048,
+         '50th qrtl height' = (q50 - q0)* 0.3048,
+         '75th qrtl height' = (q75 - q0)* 0.3048) %>%
   select(c(2, 12, 142:155, 26:27)) %>% 
-  filter(MeanCanopyHeight<30) %>% 
+  filter(`Mean canopy height` < 30) %>% # get rid of erroneous points
   pivot_longer(cols = c(2:16),
                names_to = 'Metric',
                values_to = 'Value') 
 
 ggplot(edge, aes(x = patchType, y = Value, fill = patchType))+
   geom_boxplot() +
-  #geom_violin(trim = TRUE) +
-  #geom_boxplot(fill = 'white', width = .2) +
   scale_fill_manual(values=c("Remnant" = "#b2a594", 
                              "Regrowth" = "#d56639", "Novel" = '#59B6BE')) +
   labs(title = 'LiDAR metrics in edge plots') +
-  theme(axis.title.x = element_blank()) +
-  theme(axis.title.y = element_blank()) +
-  facet_wrap(~Metric, ncol = 5, scales = 'free') +
-  theme_bw(9) +
-  theme(axis.title = element_blank(),
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  facet_wrap(~Metric, ncol = 5, scales = 'free',
+             switch = 'y') +
+  theme_classic(9) +
+  theme(strip.placement = 'outside',
+        strip.background = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black"),
+        axis.title = element_blank(),
         axis.text.x=element_blank(),
         axis.ticks.x=element_blank(),
-        legend.position = 'bottom') -> AllEdge
+        legend.position = 'bottom') +
+  guides(fill=guide_legend(title="Patch type"))-> AllEdge
 
 AllEdge
 
@@ -2368,19 +2388,31 @@ edgeSelect <- combine %>% filter(edgeCore == 'Edge') %>% #,
                names_to = 'Metric',
                values_to = 'Value') 
 
+#Create custom labeller
+my_labeller = as_labeller(
+  c('Point density (1/m)' = 'Point \n density (1/m)',
+    'Exterior complexity (m)' = 'Exterior\ncomplexity (m)',
+    'Interior complexity (m)' = 'Interior\ncomplexity (m)',
+    'Mean canopy height (m)' = 'Mean canopy\nheight (m)'))
+
 edgeFig <- ggplot(edgeSelect, aes(x = patchType, y = Value, fill = patchType))+
   geom_boxplot()+
   #geom_violin(trim = TRUE) +
   #geom_boxplot(fill = 'white', width = .2) +
   scale_fill_manual(values=c("Remnant" = "#b2a594", 
                              "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
-  theme_bw() +
+  theme_classic() +
   theme(axis.title.x = element_blank(),
         axis.title.y = element_blank(),
         axis.ticks.x = element_blank(),
         text = element_text(size = 34),
         axis.text.x = element_blank()) +
-  facet_wrap(~Metric, ncol = 2, scales = 'free') +
+  facet_wrap(~Metric, ncol = 2, scales = 'free',
+             switch = 'y',
+             labeller = my_labeller) +
+  theme(strip.placement = 'outside',
+        strip.background = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black")) +
   scale_y_continuous(labels = label_number(accuracy = 1), breaks = breaks_pretty(n = 3)) +
   theme(legend.position = 'blank')
 
@@ -2409,23 +2441,24 @@ anova(lm(vert.sd~patchType, data = edgeWide)) #***
 
 core <- combine %>% filter(edgeCore == 'Core') %>% 
   filter(PlotID != '10006') %>% 
-  mutate(`DeepGapFraction` = (deepgap.fraction),
+  mutate(`Deep gap fraction` = (deepgap.fraction),
          `Density *` = (den),
-         `GapFractionProile` = (GFP),
+         `Gap fraction` = (GFP),
          `Gini ***` = (gini),
          `Rumple **` = (rumple),
          `sd.sd **` = (sd.sd),
-         `TopRugosity ***`= (top.rugosity),
-         `VerticalSD ***` = (vert.sd),
-         `VegetativeAreaIndex` = (VAI),
-         `MaxCanopyHeight *` = (max.canopy.ht - q0)* 0.3048,
-         `MeanCanopyHeight *` = (mean.max.canopy.ht - q0)* 0.3048,
-         '100thQuartileHeight *' = (q100 - q0)* 0.3048,
-         '25thQuartileHeight' = (q25 - q0)* 0.3048,
-         '50thQuartileHeight *' = (q50 - q0)* 0.3048,
-         '75thQuartileHeight *' = (q75 - q0)* 0.3048) %>%
+         `Top rugosity ***`= (top.rugosity),
+         `Vertical SD ***` = (vert.sd),
+         #VerticalCV = (vertCV),
+         `Vegetative Area Index` = (VAI),
+         `Max canopy height *` = (max.canopy.ht - q0)* 0.3048,
+         `Mean canopy height *` = (mean.max.canopy.ht - q0)* 0.3048,
+         '100th qrtl height *' = (q100 - q0)* 0.3048,
+         '25th qrtl height' = (q25 - q0)* 0.3048,
+         '50th qrtl height *' = (q50 - q0)* 0.3048,
+         '75th qrtl height *' = (q75 - q0)* 0.3048) %>%
   select(c(2, 142:156, 26:27)) %>% 
-  filter(`MeanCanopyHeight *`<30) %>% 
+  filter(`Mean canopy height *`<30) %>% 
   pivot_longer(cols = c(2:16),
                names_to = 'Metric',
                values_to = 'Value') 
@@ -2437,11 +2470,15 @@ ggplot(core, aes(x = patchType, y = Value, fill = patchType))+
   scale_fill_manual(values=c("Remnant" = "#b2a594", 
                              "Regrowth" = "#d56639", "Novel" = '#59B6BE')) +
   labs(title = 'LiDAR metrics in core plots') +
-  theme(axis.title.x = element_blank()) +
-  theme(axis.title.y = element_blank()) +
-  facet_wrap(~Metric, ncol = 5, scales = 'free') +
-  theme_bw(9) +
-  theme(axis.title = element_blank(),
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  facet_wrap(~Metric, ncol = 5, scales = 'free',
+             switch = 'y') +
+  theme_classic(9) +
+  theme(strip.placement = 'outside',
+        strip.background = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black"),
+        axis.title = element_blank(),
         axis.text.x=element_blank(),
         axis.ticks.x=element_blank(),
         legend.position = 'blank') -> AllCore
@@ -2456,7 +2493,7 @@ both <- AllCore/AllEdge
 both
 
 ggsave(paste0(path, 'Dropbox/LindsayWorking/GradSchool/Dissertation/Figures/AllMetrics.png'),
-       both, width = 7.5, height = 7, unit = "in", dpi = 300)
+       both, width = 7.5, height = 8, unit = "in", dpi = 300)
 
 #Select fewer metrics
 
@@ -2479,15 +2516,20 @@ coreFig <- ggplot(coreSelect, aes(x = patchType, y = Value, fill = patchType))+
   #geom_boxplot(fill = 'white', width = .2) +
   scale_fill_manual(values=c("Remnant" = "#b2a594", 
                              "Regrowth" = "#d56639", "Novel" = '#59b6be')) +
-  theme_bw() +
+  theme_classic() +
   theme(axis.title.x = element_blank(),
         axis.title.y = element_blank(),
         axis.ticks.x = element_blank(),
         axis.text.x = element_blank(),
         text = element_text(size = 34)) + 
   scale_y_continuous(labels = label_number(accuracy = 1), breaks = breaks_pretty(n = 3)) +
-  facet_wrap(~Metric, ncol = 2, scales = 'free') +
-  theme(legend.position = 'blank')
+  facet_wrap(~Metric, ncol = 2, scales = 'free',
+             switch = 'y',
+             labeller = my_labeller) +
+  theme(strip.placement = 'outside',
+        strip.background = element_blank(),
+        legend.position = 'blank',
+        panel.border = element_rect(fill = NA, color = "black"))
 
 coreFig
 
